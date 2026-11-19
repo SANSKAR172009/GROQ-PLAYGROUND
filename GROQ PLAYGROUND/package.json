@@ -1,0 +1,23 @@
+{
+  "name": "nebula-groq-playground",
+  "version": "1.0.0",
+  "description": "NEBULA — Advanced Groq AI Playground with zero-shot/few-shot prompt analyzer, live token analytics, and reasoning support.",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve -s . -l 3000",
+    "dev": "npx serve -s . -l 3000"
+  },
+  "keywords": [
+    "groq",
+    "ai",
+    "llm",
+    "playground",
+    "prompt-engineering",
+    "deepseek-r1",
+    "llama-3.3",
+    "inference"
+  ],
+  "author": "NEBULA AI Labs",
+  "license": "MIT"
+}
+

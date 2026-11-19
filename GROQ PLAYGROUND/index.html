@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEBULA — Groq Intelligence Playground</title>
+  <meta name="description" content="Production-quality developer playground for Groq ultra-fast LPU inference, prompt technique analysis, and reasoning models.">
+  <link rel="icon" type="image/svg+xml" href="src/assets/logo.svg">
+
+  <!-- Google Fonts: Inter, Plus Jakarta Sans, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="src/styles/style.css">
+</head>
+<body>
+
+  <!-- Ambient Animated Starfield Canvas -->
+  <canvas id="nebula-bg-canvas"></canvas>
+
+  <div id="app-container">
+
+    <!-- ========================================================
+         TOP NAVIGATION HEADER
+         ======================================================== -->
+    <header class="top-header">
+      <div class="brand-section">
+        <button class="btn btn-ghost btn-sm" id="btn-toggle-sidebar" style="display:none;" title="Toggle Sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="brand-logo-wrap" onclick="window.nebula?.resetPlayground()" title="NEBULA — Click to Reset">
+          <img src="src/assets/logo.svg" alt="Nebula Logo" width="34" height="34">
+        </div>
+        <div class="brand-title-wrap">
+          <div class="brand-title">
+            NEBULA
+            <span style="font-size:11px; font-weight:700; background:rgba(245, 80, 54, 0.15); color:var(--groq-orange-light); border:1px solid rgba(245, 80, 54, 0.3); border-radius:4px; padding:1px 5px; -webkit-text-fill-color:var(--groq-orange-light);">GROQ LPU</span>
+          </div>
+          <div class="brand-subtitle">Intelligence Playground</div>
+        </div>
+      </div>
+
+      <!-- Quick Active Model Pill -->
+      <div class="header-center">
+        <div class="model-pill-selector" id="header-model-pill" title="Click to change model parameters">
+          <div class="model-pill-icon">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <span class="model-pill-name" id="header-model-name">Llama 3.3 70B</span>
+          <span class="model-pill-speed" id="header-model-speed">~280 T/s</span>
+        </div>
+
+        <div class="telemetry-pill" id="header-stream-pill" style="display:inline-flex;" title="Streaming enabled">
+          <span class="status-dot" style="background:var(--cyan-light);"></span>
+          <span style="font-size:11px;">Stream</span>
+        </div>
+
+        <div class="telemetry-pill" id="header-search-pill" style="display:none;" title="Web Search enabled">
+          <span class="status-dot" style="background:var(--emerald-light);"></span>
+          <span style="font-size:11px;">Search</span>
+        </div>
+      </div>
+
+      <!-- Header Actions & Key Status -->
+      <div class="header-actions">
+        <div class="api-status-badge disconnected" id="header-api-status" data-action="open-key-modal" title="Click to manage Groq API key">
+          <span class="status-dot"></span>
+          <span>Connect API Key</span>
+        </div>
+
+        <button class="btn btn-outline btn-sm" data-action="open-templates" title="Prompt Library">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <span>Templates</span>
+        </button>
+
+        <button class="btn btn-outline btn-sm" data-action="open-settings" title="Settings">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+
+        <button class="btn btn-ghost btn-sm" id="btn-toggle-right-panel" style="display:none;" title="Toggle Config Panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ========================================================
+         MAIN THREE-PANEL LAYOUT
+         ======================================================== -->
+    <div class="main-layout">
+
+      <!-- ====================================================
+           1. LEFT SIDEBAR
+           ==================================================== -->
+      <aside class="sidebar-left" id="sidebar-left">
+        <div class="sidebar-section">
+          <div class="sidebar-heading">Workspace</div>
+          <button class="nav-item-btn active" data-action="new-chat">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>New Playground</span>
+          </button>
+          <button class="nav-item-btn" data-action="open-templates">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <span>Prompt Templates</span>
+          </button>
+          <button class="nav-item-btn" data-action="open-history">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Prompt History</span>
+          </button>
+          <button class="nav-item-btn" data-action="open-saved">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            <span>Saved Prompts</span>
+          </button>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-heading">Capabilities</div>
+          <div style="display:flex; flex-direction:column; gap:6px; padding:0 8px;">
+            <div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+              <span class="status-dot" style="background:var(--emerald-light);"></span>
+              <span>Ultra-Fast LPUs</span>
+            </div>
+            <div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+              <span class="status-dot" style="background:var(--violet-light);"></span>
+              <span>DeepSeek R1 Reasoning</span>
+            </div>
+            <div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+              <span class="status-dot" style="background:var(--cyan-light);"></span>
+              <span>Prompt Auto-Analyzer</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-heading">API & Settings</div>
+          <button class="nav-item-btn" data-action="open-key-modal">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>Manage API Key</span>
+          </button>
+          <button class="nav-item-btn" data-action="open-settings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Playground Settings</span>
+          </button>
+          <a class="nav-item-btn" href="https://console.groq.com/docs/overview" target="_blank" rel="noopener noreferrer">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span>Groq Documentation</span>
+          </a>
+        </div>
+
+        <!-- Session Statistics Card -->
+        <div class="sidebar-stats-card">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text-dim); letter-spacing:0.5px;">Session Telemetry</div>
+          <div class="stats-row">
+            <span class="stats-label">Requests:</span>
+            <span class="stats-value" id="sidebar-stat-requests">0</span>
+          </div>
+          <div class="stats-row">
+            <span class="stats-label">Tokens:</span>
+            <span class="stats-value" id="sidebar-stat-tokens">0</span>
+          </div>
+          <div class="stats-row">
+            <span class="stats-label">Last Speed:</span>
+            <span class="stats-value" style="color:var(--emerald-light);" id="sidebar-stat-speed">---</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ====================================================
+           2. CENTER WORKSPACE
+           ==================================================== -->
+      <main class="workspace-center">
+
+        <!-- System Prompt Accordion -->
+        <div class="system-prompt-card" id="system-prompt-card">
+          <div class="system-prompt-header" id="system-prompt-toggle">
+            <div class="system-prompt-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span>System Persona & Instructions (Optional)</span>
+            </div>
+            <svg class="accordion-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="system-prompt-body" id="system-prompt-body">
+            <div class="persona-chips-row">
+              <span class="persona-chip" data-persona="You are a senior full-stack architect specializing in clean, maintainable, production-ready code.">Senior Architect</span>
+              <span class="persona-chip" data-persona="You are an expert debugger and security analyst. Identify edge-cases and root causes with precision.">Bug Hunter</span>
+              <span class="persona-chip" data-persona="Respond in strict valid JSON format matching the schema requested. Do not include conversational text or markdown code fences.">JSON Specialist</span>
+              <span class="persona-chip" data-persona="You are a concise technical writer. Deliver direct, high-signal explanations with zero fluff.">Concise Tech Writer</span>
+              <span class="persona-chip" data-persona="You are a patient CS educator. Break down complex distributed systems with intuitive analogies and ASCII diagrams.">Professor</span>
+            </div>
+            <textarea id="system-prompt-input" rows="2" placeholder="e.g. You are a senior AI research engineer. Answer questions with rigorous technical depth and provide benchmark comparisons..." style="width:100%; background:rgba(0,0,0,0.3); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); color:var(--text-main); padding:8px 12px; font-size:13px; font-family:var(--font-sans); outline:none; resize:vertical;"></textarea>
+          </div>
+        </div>
+
+        <!-- Prompt Editor Card -->
+        <div class="prompt-editor-card">
+          <div class="editor-toolbar">
+            <div class="editor-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--violet-primary)" stroke-width="2.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+              <span>PROMPT EDITOR</span>
+            </div>
+
+            <!-- Quick Technique Pill (Live AI Prompt Analyzer Preview) -->
+            <div class="quick-analyzer-pill badge-zero-shot" id="quick-analyzer-pill" title="Click to view full prompt technique analysis">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              <span>Analyzing Prompt...</span>
+            </div>
+
+            <div class="editor-actions-group">
+              <button class="btn btn-ghost btn-sm" id="btn-save-prompt-bookmark" title="Bookmark Prompt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-sm" id="btn-copy-prompt" title="Copy Prompt Text">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-sm" id="btn-clear-prompt" title="Clear Prompt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <textarea class="prompt-textarea" id="user-prompt-input" placeholder="Type your instruction, query, or few-shot demonstration here... (e.g. Explain how Groq LPUs achieve 800+ tokens per second, or choose a template)"></textarea>
+
+          <div class="editor-footer">
+            <div class="editor-counters">
+              <span id="editor-char-count">0 chars</span>
+              <span>&bull;</span>
+              <span id="editor-token-count">~0 tokens</span>
+            </div>
+
+            <div class="run-actions-wrap">
+              <div class="shortcut-hint">
+                <span class="kbd">⌘</span> + <span class="kbd">Enter</span>
+              </div>
+
+              <!-- Run Button -->
+              <button class="btn btn-groq" id="btn-run-prompt">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span>Run Prompt</span>
+              </button>
+
+              <!-- Stop Button (during stream) -->
+              <button class="btn btn-danger" id="btn-stop-generation" style="display:none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                <span>Stop</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Response Viewer Card -->
+        <div class="response-card">
+          <div class="response-header">
+            <div class="response-status-wrap">
+              <div class="execution-badge">
+                <span class="status-dot" id="response-status-dot" style="background:var(--emerald-light);"></span>
+                <span id="response-status-text">Ready</span>
+              </div>
+              <div class="telemetry-pills">
+                <div class="telemetry-pill" title="Tokens Per Second">
+                  <span>Speed:</span>
+                  <strong id="telemetry-speed">---</strong>
+                </div>
+                <div class="telemetry-pill" title="Generation Latency">
+                  <span>Latency:</span>
+                  <strong id="telemetry-latency">---</strong>
+                </div>
+                <div class="telemetry-pill" title="Tokens Processed">
+                  <span>Tokens:</span>
+                  <strong id="telemetry-tokens">0 in / 0 out</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="response-toolbar">
+              <button class="btn btn-ghost btn-sm" id="btn-regenerate-response" title="Regenerate">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-sm" id="btn-copy-response" title="Copy Response">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-sm" id="btn-download-response" title="Download Markdown">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-sm" id="btn-clear-response" title="Clear Viewer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="response-body" id="response-body">
+            <!-- Reasoning / Chain-of-Thought Block (DeepSeek R1) -->
+            <div class="reasoning-box" id="reasoning-box" style="display:none;">
+              <div class="reasoning-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+                <div class="reasoning-title">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8c0 3.37 2.06 6.26 5 7.46V20a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2.54c2.94-1.2 5-4.09 5-7.46a8 8 0 0 0-8-8z"/></svg>
+                  <span>Chain-of-Thought (Reasoning Process)</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span class="badge" style="background:rgba(139, 92, 246, 0.2); color:var(--violet-light); font-size:11px; padding:2px 8px; border-radius:10px;" id="reasoning-timer">0.0s</span>
+                  <span style="font-size:11px; color:var(--text-dim);">&#9662;</span>
+                </div>
+              </div>
+              <div class="reasoning-body" id="reasoning-body-content"></div>
+            </div>
+
+            <!-- Citations & Sources Card -->
+            <div class="sources-card" id="sources-card" style="display:none;">
+              <div class="sources-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <span>Web Sources & Verified References</span>
+              </div>
+              <div class="sources-list" id="sources-list"></div>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state">
+              <div class="empty-state-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <h3>Awaiting Generation</h3>
+              <p>Compose a prompt above and click <strong>Run Prompt</strong> (or press <code>Cmd/Ctrl + Enter</code>) to trigger ultra-low latency Groq inference.</p>
+            </div>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- ====================================================
+           3. RIGHT CONFIGURATION PANEL
+           ==================================================== -->
+      <aside class="panel-right" id="panel-right">
+        <!-- Tab Bar -->
+        <div class="panel-tabs-bar">
+          <button class="panel-tab active" data-target="tab-parameters">Parameters</button>
+          <button class="panel-tab" data-target="tab-analyzer">Prompt Analyzer</button>
+          <button class="panel-tab" data-target="tab-metrics">Metrics</button>
+        </div>
+
+        <!-- 1. PARAMETERS TAB CONTENT -->
+        <div class="panel-content active" id="tab-parameters">
+          <!-- Model Selection -->
+          <div class="control-group">
+            <div class="control-header">
+              <label class="control-label" for="model-select">Groq Model</label>
+              <button class="btn btn-ghost btn-sm" id="btn-refresh-models" title="Sync live models from Groq API" style="padding:2px 6px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              </button>
+            </div>
+            <select id="model-select" style="width:100%; background:var(--bg-glass-input); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); color:var(--text-main); padding:8px 10px; font-size:13px; outline:none;"></select>
+            <div class="control-desc" id="model-description-text">State-of-the-art open model with high contextual intelligence.</div>
+            <div style="display:flex; gap:6px; margin-top:2px;">
+              <span class="persona-chip" id="model-context-pill">128k Context</span>
+              <span class="persona-chip" style="color:var(--emerald-light);">Groq LPU Acceleration</span>
+            </div>
+          </div>
+
+          <hr style="border:0; height:1px; background:var(--border-subtle);">
+
+          <!-- Temperature -->
+          <div class="control-group">
+            <div class="control-header">
+              <label class="control-label" for="param-temperature">
+                <span>Temperature</span>
+              </label>
+              <span class="control-value" id="val-temperature">0.7</span>
+            </div>
+            <input type="range" class="slider-input" id="param-temperature" min="0" max="2" step="0.05" value="0.7">
+            <div class="control-desc">Lower values are deterministic and factual; higher values introduce novelty and creativity.</div>
+          </div>
+
+          <!-- Max Output Tokens -->
+          <div class="control-group">
+            <div class="control-header">
+              <label class="control-label" for="param-max-tokens">Max Tokens</label>
+              <span class="control-value" id="val-max-tokens">2048</span>
+            </div>
+            <input type="range" class="slider-input" id="param-max-tokens" min="64" max="8192" step="64" value="2048">
+            <div class="persona-chips-row" style="margin-top:2px;">
+              <span class="persona-chip token-preset-chip" data-tokens="512">512</span>
+              <span class="persona-chip token-preset-chip" data-tokens="1024">1,024</span>
+              <span class="persona-chip token-preset-chip" data-tokens="2048">2,048</span>
+              <span class="persona-chip token-preset-chip" data-tokens="4096">4,096</span>
+              <span class="persona-chip token-preset-chip" data-tokens="8192">8,192</span>
+            </div>
+            <div class="control-desc">Maximum number of output tokens generated in the completion response.</div>
+          </div>
+
+          <!-- Top P -->
+          <div class="control-group">
+            <div class="control-header">
+              <label class="control-label" for="param-top-p">Top P (Nucleus)</label>
+              <span class="control-value" id="val-top-p">1.0</span>
+            </div>
+            <input type="range" class="slider-input" id="param-top-p" min="0.05" max="1" step="0.05" value="1.0">
+            <div class="control-desc">Dynamically thresholds candidate tokens by cumulative probability mass.</div>
+          </div>
+
+          <hr style="border:0; height:1px; background:var(--border-subtle);">
+
+          <!-- Feature Toggles -->
+          <div class="toggle-row">
+            <div>
+              <div style="font-size:13px; font-weight:600; color:#fff;">Streaming Response</div>
+              <div class="control-desc">Display tokens progressively via Server-Sent Events</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-streaming" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Reasoning Mode Toggle -->
+          <div class="toggle-row" id="reasoning-mode-wrap">
+            <div>
+              <div style="font-size:13px; font-weight:600; color:#fff; display:flex; align-items:center; gap:6px;">
+                <span>Reasoning Mode</span>
+                <span class="persona-chip" style="font-size:10px; color:var(--violet-light);">DeepSeek R1</span>
+              </div>
+              <div class="control-desc">Exposes raw chain-of-thought &lt;think&gt; deduction</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-reasoning-mode">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div id="reasoning-unsupported-notice" style="display:none; padding:8px 12px; background:rgba(255,255,255,0.03); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); font-size:11px; color:var(--text-dim);">
+            <span>Reasoning is available on DeepSeek R1 models.</span>
+            <button class="btn btn-outline btn-sm" id="btn-switch-to-r1" style="margin-top:6px; width:100%;">Switch to DeepSeek R1 70B</button>
+          </div>
+
+          <div class="control-group" id="reasoning-effort-wrap" style="display:none;">
+            <div class="control-header">
+              <label class="control-label" for="select-reasoning-effort">Reasoning Effort</label>
+            </div>
+            <select id="select-reasoning-effort" style="width:100%; background:var(--bg-glass-input); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); color:var(--text-main); padding:6px 10px; font-size:12px; outline:none;">
+              <option value="low">Low (Faster, concise chain-of-thought)</option>
+              <option value="medium" selected>Medium (Standard balanced deduction)</option>
+              <option value="high">High (Deep, rigorous formal proof)</option>
+            </select>
+          </div>
+
+          <!-- Web Search Toggle -->
+          <div class="toggle-row">
+            <div>
+              <div style="font-size:13px; font-weight:600; color:#fff; display:flex; align-items:center; gap:6px;">
+                <span>Live Web Search</span>
+                <span class="persona-chip" style="font-size:10px; color:var(--cyan-light);">Tool Calling</span>
+              </div>
+              <div class="control-desc">Groq function-calling with live citation synthesis</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-web-search">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div id="web-search-info-card" style="display:none; padding:10px 12px; background:rgba(6, 182, 212, 0.08); border:1px solid rgba(6, 182, 212, 0.25); border-radius:var(--radius-sm); font-size:11px; color:var(--text-muted); line-height:1.5;">
+            <strong>Web Search Mode Active:</strong> Standard Groq chat completion does not crawl the web automatically. When enabled, Nebula attaches an official Groq tool-call function definition so the model requests live web citations.
+          </div>
+
+          <!-- Advanced Accordion -->
+          <details style="margin-top:4px;">
+            <summary style="font-size:12px; font-weight:600; color:var(--text-muted); cursor:pointer; padding:6px 0; user-select:none;">Advanced Penalties & Parameters</summary>
+            <div style="display:flex; flex-direction:column; gap:14px; margin-top:10px; padding-left:2px;">
+              <div class="control-group">
+                <div class="control-header">
+                  <label class="control-label" for="param-freq-penalty">Frequency Penalty</label>
+                  <span class="control-value" id="val-freq-penalty">0.0</span>
+                </div>
+                <input type="range" class="slider-input" id="param-freq-penalty" min="-2" max="2" step="0.1" value="0.0">
+              </div>
+              <div class="control-group">
+                <div class="control-header">
+                  <label class="control-label" for="param-pres-penalty">Presence Penalty</label>
+                  <span class="control-value" id="val-pres-penalty">0.0</span>
+                </div>
+                <input type="range" class="slider-input" id="param-pres-penalty" min="-2" max="2" step="0.1" value="0.0">
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- 2. PROMPT ANALYZER TAB CONTENT -->
+        <div class="panel-content" id="tab-analyzer">
+          <!-- Classification Card -->
+          <div class="analyzer-card" style="background:rgba(139, 92, 246, 0.06); border-color:rgba(139, 92, 246, 0.25);">
+            <div class="technique-title-wrap">
+              <span class="technique-badge-lg badge-zero-shot" id="analyzer-technique-badge">Zero-Shot Prompting</span>
+              <span style="font-size:10px; font-weight:600; color:var(--text-dim);">ESTIMATE</span>
+            </div>
+
+            <div class="confidence-indicator">
+              <div class="confidence-labels">
+                <span>Pattern Confidence</span>
+                <strong id="analyzer-confidence-score">90% (High)</strong>
+              </div>
+              <div class="confidence-bar-bg">
+                <div class="confidence-bar-fill" id="analyzer-confidence-bar" style="width:90%;"></div>
+              </div>
+            </div>
+
+            <p style="font-size:12px; color:var(--text-muted); line-height:1.5;" id="analyzer-reasoning-text">
+              Direct instructional prompt without demonstration pairs. The model relies entirely on pre-trained parametric memory.
+            </p>
+          </div>
+
+          <!-- Structural Health Audit -->
+          <div class="analyzer-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:12px; font-weight:700; color:#fff; text-transform:uppercase;">Prompt Structural Audit</span>
+              <strong style="color:var(--violet-light); font-size:13px;" id="analyzer-overall-score">75/100</strong>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div class="audit-metric-row">
+                <span style="color:var(--text-muted);">Clarity & Directive</span>
+                <div class="audit-bar"><div class="audit-bar-fill" id="analyzer-clarity-bar" style="width:80%;"></div></div>
+              </div>
+              <div class="audit-metric-row">
+                <span style="color:var(--text-muted);">Context Specificity</span>
+                <div class="audit-bar"><div class="audit-bar-fill" id="analyzer-specificity-bar" style="width:70%;"></div></div>
+              </div>
+              <div class="audit-metric-row">
+                <span style="color:var(--text-muted);">Output Constraints</span>
+                <div class="audit-bar"><div class="audit-bar-fill" id="analyzer-constraints-bar" style="width:50%;"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actionable Suggestions -->
+          <div class="analyzer-card">
+            <span style="font-size:12px; font-weight:700; color:var(--cyan-light); text-transform:uppercase;">Improvement Suggestions</span>
+            <ul style="font-size:12px; color:var(--text-muted); padding-left:18px; line-height:1.5; display:flex; flex-direction:column; gap:6px;" id="analyzer-suggestions-list">
+              <li>Add explicit format constraints (e.g. Markdown table or JSON).</li>
+            </ul>
+          </div>
+
+          <!-- Missing Elements -->
+          <div class="analyzer-card">
+            <span style="font-size:12px; font-weight:700; color:var(--amber-light); text-transform:uppercase;">Missing Guardrails</span>
+            <ul style="font-size:12px; color:var(--text-muted); padding-left:18px; line-height:1.5; display:flex; flex-direction:column; gap:4px;" id="analyzer-missing-list">
+              <li>No negative boundary constraints.</li>
+            </ul>
+          </div>
+
+          <!-- Improved Prompt Candidate -->
+          <div class="analyzer-card" style="background:rgba(6, 182, 212, 0.05); border-color:rgba(6, 182, 212, 0.25);">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:12px; font-weight:700; color:var(--cyan-light); text-transform:uppercase;">Enhanced Prompt Candidate</span>
+              <button class="btn btn-primary btn-sm" id="btn-apply-improved-prompt" style="padding:3px 8px; font-size:11px;">Apply to Editor</button>
+            </div>
+            <div class="improved-prompt-box" id="improved-prompt-text">Loading improved prompt...</div>
+          </div>
+        </div>
+
+        <!-- 3. METRICS & TELEMETRY TAB CONTENT -->
+        <div class="panel-content" id="tab-metrics">
+          <div class="analyzer-card">
+            <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text-dim);">Real-Time Inference Speed</span>
+            <div style="display:flex; align-items:baseline; gap:8px;">
+              <span style="font-family:var(--font-display); font-size:32px; font-weight:800; color:var(--emerald-light);" id="metric-last-speed">0 T/s</span>
+              <span style="color:var(--text-dim); font-size:12px;">tokens/second</span>
+            </div>
+            <div style="font-size:11px; color:var(--text-muted);">Groq LPUs process language 10x faster than traditional GPU clusters.</div>
+          </div>
+
+          <div class="analyzer-card">
+            <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text-dim);">Execution Timing</span>
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-top:4px;">
+              <span style="color:var(--text-muted);">Last Request Latency:</span>
+              <strong style="color:var(--cyan-light); font-family:var(--font-mono);" id="metric-last-latency">0 ms</strong>
+            </div>
+          </div>
+
+          <div class="analyzer-card">
+            <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text-dim);">Session Cumulative Volume</span>
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-top:4px;">
+              <span style="color:var(--text-muted);">Total Queries:</span>
+              <strong style="color:#fff; font-family:var(--font-mono);" id="metric-total-requests">0</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-top:4px;">
+              <span style="color:var(--text-muted);">Total Tokens Processed:</span>
+              <strong style="color:var(--violet-light); font-family:var(--font-mono);" id="metric-total-tokens">0</strong>
+            </div>
+          </div>
+
+          <div class="analyzer-card" style="border-color:rgba(245, 80, 54, 0.25);">
+            <div style="display:flex; align-items:center; gap:8px; font-weight:700; color:var(--groq-orange-light); font-size:12px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <span>Groq Architecture Advantage</span>
+            </div>
+            <p style="font-size:11px; color:var(--text-muted); line-height:1.5;">
+              Unlike conventional GPUs constrained by HBM memory bus bottlenecks, Groq LPUs feature deterministic synchronous execution with massive on-chip SRAM bandwidth (up to 80 TB/s per chip).
+            </p>
+          </div>
+        </div>
+
+      </aside>
+
+    </div>
+
+    <!-- ========================================================
+         MODAL DIALOGS
+         ======================================================== -->
+
+    <!-- 1. API Key Setup Modal -->
+    <div class="modal-overlay" id="modal-api-key">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-primary)" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>Connect Groq API Key</span>
+          </div>
+          <button class="btn btn-ghost btn-sm modal-close-trigger" style="font-size:18px; padding:0 6px;">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <div style="display:flex; align-items:flex-start; gap:12px; background:rgba(139, 92, 246, 0.08); border:1px solid rgba(139, 92, 246, 0.25); border-radius:var(--radius-md); padding:12px 14px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-light)" stroke-width="2" style="flex-shrink:0; margin-top:2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <div style="font-size:12px; color:var(--text-muted); line-height:1.5;">
+              <strong>Bring Your Own Key (BYOK):</strong> Your key is used strictly for direct inference requests and never stored in any external database.
+              Get a free API key at <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" style="color:var(--cyan-light); text-decoration:underline;">console.groq.com/keys</a>.
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label class="control-label" for="input-api-key">Groq API Key</label>
+            <div class="key-input-wrapper">
+              <input type="password" class="key-input-field" id="input-api-key" placeholder="gsk_..." autocomplete="off">
+              <button class="key-eye-btn" id="btn-toggle-key-visibility" title="Show/Hide Key">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div id="key-modal-error" style="display:none; color:var(--rose-light); font-size:12px; padding:4px 0;"></div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="chk-remember-key" style="cursor:pointer; accent-color:var(--violet-primary);">
+            <label for="chk-remember-key" style="font-size:12px; color:var(--text-muted); cursor:pointer;">
+              Remember key on this device (stores in browser localStorage)
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-ghost btn-sm modal-close-trigger">Explore in Demo Mode</button>
+          <button class="btn btn-primary" id="btn-connect-key">
+            <span>Verify & Connect</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Templates Modal -->
+    <div class="modal-overlay" id="modal-templates">
+      <div class="modal-card" style="max-width:680px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--cyan-light)" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <span>Curated Developer Prompt Library</span>
+          </div>
+          <button class="btn btn-ghost btn-sm modal-close-trigger" style="font-size:18px; padding:0 6px;">&times;</button>
+        </div>
+        <div class="modal-body" id="templates-modal-list"></div>
+      </div>
+    </div>
+
+    <!-- 3. History Modal -->
+    <div class="modal-overlay" id="modal-history">
+      <div class="modal-card" style="max-width:640px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--violet-light)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Session Prompt History</span>
+          </div>
+          <button class="btn btn-ghost btn-sm modal-close-trigger" style="font-size:18px; padding:0 6px;">&times;</button>
+        </div>
+        <div class="modal-body" id="history-modal-list"></div>
+      </div>
+    </div>
+
+    <!-- 4. Saved Bookmarks Modal -->
+    <div class="modal-overlay" id="modal-saved">
+      <div class="modal-card" style="max-width:600px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--cyan-light)" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            <span>Bookmarked Prompts</span>
+          </div>
+          <button class="btn btn-ghost btn-sm modal-close-trigger" style="font-size:18px; padding:0 6px;">&times;</button>
+        </div>
+        <div class="modal-body" id="saved-modal-list"></div>
+      </div>
+    </div>
+
+    <!-- 5. Settings Modal -->
+    <div class="modal-overlay" id="modal-settings">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Playground Settings</span>
+          </div>
+          <button class="btn btn-ghost btn-sm modal-close-trigger" style="font-size:18px; padding:0 6px;">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="control-group">
+            <label class="control-label">Connected API Key</label>
+            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:10px 14px;">
+              <span class="mono" style="font-size:13px; color:var(--cyan-light);" id="settings-masked-key">No key connected</span>
+              <button class="btn btn-danger btn-sm" id="btn-disconnect-key">Disconnect</button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label class="control-label">Connection Mode</label>
+            <div class="control-desc" style="margin-bottom:6px;">Direct browser connection to api.groq.com (fastest, standard CORS enabled).</div>
+            <div style="font-size:12px; color:var(--emerald-light); display:flex; align-items:center; gap:6px;">
+              <span class="status-dot" style="background:var(--emerald-light);"></span>
+              <span>Direct Official API Client (api.groq.com/openai/v1)</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label class="control-label">Keyboard Shortcuts</label>
+            <div style="font-size:12px; color:var(--text-muted); display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; justify-content:space-between;"><span>Run Prompt:</span> <span class="kbd">Cmd / Ctrl + Enter</span></div>
+              <div style="display:flex; justify-content:space-between;"><span>Abort Stream:</span> <span class="kbd">Escape</span></div>
+              <div style="display:flex; justify-content:space-between;"><span>Clear Response:</span> <span class="kbd">Clear Button</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline btn-sm modal-close-trigger">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container"></div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="src/scripts/api.js"></script>
+  <script src="src/scripts/analyzer.js"></script>
+  <script src="src/scripts/app.js"></script>
+</body>
+</html>
+
