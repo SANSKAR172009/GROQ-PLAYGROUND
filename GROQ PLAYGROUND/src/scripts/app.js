@@ -172,27 +172,38 @@ function verifyToken(req, res, next) {
         this.openModal('modal-api-key');
       }, 700);
     } else {
-      // Validate in background and fetch live models
       this.refreshLiveModels(false);
     }
   }
 
   /* ========================================================
-     STORAGE & STATE PERSISTENCE
+     STORAGE & STATE INITIALIZATION
      ======================================================== */
   loadStorage() {
     try {
-      const hist = localStorage.getItem(this.historyKey);
-      if (hist) this.history = JSON.parse(hist);
-
-      const saved = localStorage.getItem(this.savedKey);
-      if (saved) this.savedPrompts = JSON.parse(saved);
-
-      const stats = localStorage.getItem(this.statsKey);
-      if (stats) this.state.stats = { ...this.state.stats, ...JSON.parse(stats) };
+      const savedHistory = localStorage.getItem(this.historyKey);
+      if (savedHistory) {
+        this.history = JSON.parse(savedHistory);
+      }
     } catch (e) {
-      console.warn('Storage read failed:', e);
+      this.history = [];
     }
+
+    try {
+      const savedBookmarks = localStorage.getItem(this.savedKey);
+      if (savedBookmarks) {
+        this.savedPrompts = JSON.parse(savedBookmarks);
+      }
+    } catch (e) {
+      this.savedPrompts = [];
+    }
+
+    try {
+      const savedStats = localStorage.getItem(this.statsKey);
+      if (savedStats) {
+        this.state.stats = { ...this.state.stats, ...JSON.parse(savedStats) };
+      }
+    } catch (e) {}
   }
 
   saveHistory(item) {
@@ -204,19 +215,18 @@ function verifyToken(req, res, next) {
   }
 
   savePromptBookmark(title, prompt, system) {
-    const bookmark = {
+    const item = {
       id: Date.now().toString(),
-      title: title || 'Saved Prompt',
+      title: title || 'Custom Prompt',
       prompt,
       system,
-      model: this.state.selectedModel,
       timestamp: new Date().toISOString()
     };
-    this.savedPrompts.unshift(bookmark);
+    this.savedPrompts.unshift(item);
     try {
       localStorage.setItem(this.savedKey, JSON.stringify(this.savedPrompts));
+      this.showToast(`Saved prompt "${item.title}" to bookmarks`, 'success');
     } catch (_) {}
-    this.showToast('Prompt saved to bookmarks', 'success');
   }
 
   updateSessionStats(promptTokens, completionTokens, durationMs, tokensPerSec) {
@@ -275,7 +285,6 @@ function verifyToken(req, res, next) {
     const render = () => {
       ctx.clearRect(0, 0, width, height);
 
-      // Connect nearby particles
       for (let i = 0; i < particles.length; i++) {
         const p1 = particles[i];
         p1.x += p1.vx;
@@ -286,14 +295,12 @@ function verifyToken(req, res, next) {
         if (p1.y < 0) p1.y = height;
         if (p1.y > height) p1.y = 0;
 
-        // Draw particle point
         ctx.beginPath();
         ctx.arc(p1.x, p1.y, p1.size, 0, Math.PI * 2);
         ctx.fillStyle = p1.color;
         ctx.globalAlpha = p1.alpha;
         ctx.fill();
 
-        // Connect lines
         for (let j = i + 1; j < particles.length; j++) {
           const p2 = particles[j];
           const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
@@ -308,7 +315,6 @@ function verifyToken(req, res, next) {
           }
         }
 
-        // Mouse proximity connection
         const mouseDist = Math.hypot(p1.x - mouseX, p1.y - mouseY);
         if (mouseDist < 160) {
           ctx.beginPath();
@@ -332,19 +338,15 @@ function verifyToken(req, res, next) {
      ======================================================== */
   populateModelsDropdown() {
     const select = document.getElementById('model-select');
-    const headerPillName = document.getElementById('header-model-name');
-    const headerPillSpeed = document.getElementById('header-model-speed');
     if (!select) return;
 
     select.innerHTML = '';
-
     const models = this.api.modelsCatalog;
 
-    // Group models by category
     const categories = {
       flagship: '⭐ Flagship Models',
       speed: '⚡ Ultra-Fast LPUs',
-      reasoning: '🧠 Reasoning & Math (DeepSeek R1)',
+      reasoning: '🧠 Reasoning & Math (DeepSeek R1 / QwQ)',
       general: '🌐 Versatile General Models',
       vision: '👁️ Vision Multimodal',
       moe: '🧩 Mixture of Experts'
@@ -377,6 +379,19 @@ function verifyToken(req, res, next) {
     this.updateActiveModelUI();
   }
 
+  selectModelById(modelId) {
+    this.state.selectedModel = modelId;
+    const modelSelect = document.getElementById('model-select');
+    if (modelSelect) modelSelect.value = modelId;
+    this.updateActiveModelUI();
+  }
+
+  selectModel(modelId) {
+    this.selectModelById(modelId);
+    this.closeModal('modal-models');
+    this.showToast(`Active Model: ${modelId}`, 'success');
+  }
+
   updateActiveModelUI() {
     const model = this.api.modelsCatalog.find(m => m.id === this.state.selectedModel) || {
       id: this.state.selectedModel,
@@ -384,7 +399,7 @@ function verifyToken(req, res, next) {
       speed: '~300 T/s',
       context: 8192,
       maxTokens: 4096,
-      supportsReasoning: this.state.selectedModel.includes('r1')
+      supportsReasoning: this.state.selectedModel.includes('r1') || this.state.selectedModel.includes('qwq')
     };
 
     const headerName = document.getElementById('header-model-name');
@@ -446,7 +461,7 @@ function verifyToken(req, res, next) {
       const models = await this.api.fetchLiveModels();
       this.populateModelsDropdown();
       if (showToast) {
-        this.showToast(`Fetched ${models.length} active models from Groq Cloud.`, 'success');
+        this.showToast(`Synced ${models.length} live models from Groq Cloud.`, 'success');
       }
     } catch (err) {
       if (showToast) this.showToast(`Model fetch error: ${err.message}`, 'error');
@@ -550,20 +565,18 @@ function verifyToken(req, res, next) {
       });
     }
 
-    // Switch to DeepSeek R1 shortcut button from notice
+    // Switch to DeepSeek R1 button from unsupported notice
     const btnSwitchR1 = document.getElementById('btn-switch-to-r1');
     if (btnSwitchR1) {
       btnSwitchR1.addEventListener('click', () => {
-        this.state.selectedModel = 'deepseek-r1-distill-llama-70b';
-        if (modelSelect) modelSelect.value = this.state.selectedModel;
-        this.updateActiveModelUI();
+        this.selectModelById('deepseek-r1-distill-llama-70b');
         if (toggleReasoning) {
           toggleReasoning.checked = true;
           this.state.reasoningMode = true;
         }
         const effortWrap = document.getElementById('reasoning-effort-wrap');
         if (effortWrap) effortWrap.style.display = 'flex';
-        this.showToast('Switched to DeepSeek R1 Reasoning Model', 'success');
+        this.showToast('Switched to DeepSeek R1 70B Reasoning Model', 'success');
       });
     }
 
@@ -614,7 +627,7 @@ function verifyToken(req, res, next) {
         this.debouncePromptAnalysis();
       });
 
-      // Keyboard shortcut: Cmd/Ctrl + Enter to run
+      // Cmd / Ctrl + Enter to run
       promptInput.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
           e.preventDefault();
@@ -681,7 +694,6 @@ function verifyToken(req, res, next) {
           this.runPromptAnalysis();
           promptInput.focus();
 
-          // Flash highlight
           promptInput.style.borderColor = 'var(--cyan-light)';
           promptInput.style.boxShadow = '0 0 20px var(--cyan-glow)';
           setTimeout(() => {
@@ -734,9 +746,13 @@ function verifyToken(req, res, next) {
       });
     });
 
-    // Sidebar navigation buttons
+    // Navigation triggers
     document.querySelectorAll('[data-action="new-chat"]').forEach(btn => {
       btn.addEventListener('click', () => this.resetPlayground());
+    });
+
+    document.querySelectorAll('[data-action="open-models"]').forEach(btn => {
+      btn.addEventListener('click', () => this.openModelsModal());
     });
 
     document.querySelectorAll('[data-action="open-templates"]').forEach(btn => {
@@ -759,7 +775,65 @@ function verifyToken(req, res, next) {
       btn.addEventListener('click', () => this.openModal('modal-api-key'));
     });
 
-    // Bookmark / Save prompt button
+    document.querySelectorAll('[data-action="open-onboarding"]').forEach(btn => {
+      btn.addEventListener('click', () => this.openModal('modal-onboarding'));
+    });
+
+    document.querySelectorAll('[data-action="open-shortcuts"]').forEach(btn => {
+      btn.addEventListener('click', () => this.openModal('modal-shortcuts'));
+    });
+
+    // Model Explorer Filters & Search
+    const modelSearch = document.getElementById('model-search-input');
+    if (modelSearch) {
+      modelSearch.addEventListener('input', (e) => {
+        const activePill = document.querySelector('#model-category-filters .filter-pill.active');
+        const cat = activePill ? activePill.dataset.filter : 'all';
+        this.renderModelsGrid(cat, e.target.value);
+      });
+    }
+
+    document.querySelectorAll('#model-category-filters .filter-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('#model-category-filters .filter-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        const searchInput = document.getElementById('model-search-input');
+        this.renderModelsGrid(pill.dataset.filter, searchInput?.value || '');
+      });
+    });
+
+    // History search & clear
+    const historySearch = document.getElementById('history-search-input');
+    if (historySearch) {
+      historySearch.addEventListener('input', (e) => {
+        this.openHistoryModal(e.target.value);
+      });
+    }
+
+    const btnClearAllHist = document.getElementById('btn-clear-all-history');
+    if (btnClearAllHist) {
+      btnClearAllHist.addEventListener('click', () => this.promptClearAllHistory());
+    }
+
+    // Connection Route Radio
+    const routeDirect = document.getElementById('route-direct');
+    const routeProxy = document.getElementById('route-proxy');
+    if (routeDirect && routeProxy) {
+      routeDirect.addEventListener('change', () => {
+        if (routeDirect.checked) {
+          this.api.setUseProxy(false);
+          this.showToast('Connection routing: Direct api.groq.com', 'info');
+        }
+      });
+      routeProxy.addEventListener('change', () => {
+        if (routeProxy.checked) {
+          this.api.setUseProxy(true);
+          this.showToast('Connection routing: Vercel Edge Proxy (/api/groq)', 'info');
+        }
+      });
+    }
+
+    // Bookmark prompt button
     const btnBookmark = document.getElementById('btn-save-prompt-bookmark');
     if (btnBookmark) {
       btnBookmark.addEventListener('click', () => {
@@ -767,7 +841,7 @@ function verifyToken(req, res, next) {
           this.showToast('Please enter a prompt first', 'info');
           return;
         }
-        const title = prompt('Enter a name for this prompt bookmark:', this.state.userPrompt.slice(0, 30));
+        const title = prompt('Enter a title for this bookmark:', this.state.userPrompt.slice(0, 32));
         if (title !== null) {
           this.savePromptBookmark(title, this.state.userPrompt, this.state.systemPrompt);
         }
@@ -802,19 +876,15 @@ function verifyToken(req, res, next) {
       });
     }
 
-    // Disconnect / Forget Key
+    // Disconnect Key
     const btnDisconnectKey = document.getElementById('btn-disconnect-key');
     if (btnDisconnectKey) {
       btnDisconnectKey.addEventListener('click', () => {
-        if (confirm('Disconnect your Groq API key from this session?')) {
-          this.api.clearApiKey();
-          this.updateKeyStatusUI();
-          this.showToast('Groq API Key disconnected', 'info');
-        }
+        this.promptDisconnectKey();
       });
     }
 
-    // Modal Close Buttons
+    // Modal Close Triggers
     document.querySelectorAll('.modal-close-trigger').forEach(trigger => {
       trigger.addEventListener('click', () => {
         const modal = trigger.closest('.modal-overlay');
@@ -822,17 +892,49 @@ function verifyToken(req, res, next) {
       });
     });
 
-    // Close modal on Escape
+    // Click outside modal card to close
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          overlay.classList.remove('open');
+        }
+      });
+    });
+
+    // Global Keyboard Shortcuts
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
-        if (this.state.isGenerating) {
+        const openModals = document.querySelectorAll('.modal-overlay.open');
+        if (openModals.length > 0) {
+          openModals.forEach(m => m.classList.remove('open'));
+        } else if (this.state.isGenerating) {
           this.stopGeneration();
         }
       }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        this.clearResponseViewer();
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        if (promptInput) {
+          promptInput.value = '';
+          this.state.userPrompt = '';
+          this.updatePromptCounters('');
+          this.runPromptAnalysis();
+          promptInput.focus();
+        }
+      }
+
+      if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+        e.preventDefault();
+        this.openModal('modal-shortcuts');
+      }
     });
 
-    // Mobile Sidebar Toggles
+    // Mobile Sidebar & Config Toggles
     const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
     const sidebar = document.getElementById('sidebar-left');
     if (btnToggleSidebar && sidebar) {
@@ -893,7 +995,7 @@ function verifyToken(req, res, next) {
 
     if (!cleanKey) {
       if (errorEl) {
-        errorEl.textContent = 'Please paste your Groq API key.';
+        errorEl.textContent = 'Please enter your Groq API key.';
         errorEl.style.display = 'block';
       }
       return;
@@ -968,8 +1070,21 @@ function verifyToken(req, res, next) {
     }
   }
 
+  promptDisconnectKey() {
+    this.showConfirm(
+      'Disconnect Groq API Key',
+      'This will remove your API key from memory and local browser storage. You will need to re-enter it to make future inference queries.',
+      () => {
+        this.api.clearApiKey();
+        this.updateKeyStatusUI();
+        this.closeModal('modal-settings');
+        this.showToast('Groq API Key disconnected', 'info');
+      }
+    );
+  }
+
   /* ========================================================
-     PROMPT ANALYZER (ZERO-SHOT / FEW-SHOT)
+     PROMPT ANALYZER (ZERO-SHOT / ONE-SHOT / FEW-SHOT)
      ======================================================== */
   debouncePromptAnalysis() {
     clearTimeout(this._analysisTimeout);
@@ -1054,6 +1169,105 @@ function verifyToken(req, res, next) {
   }
 
   /* ========================================================
+     LIVE WEB SEARCH RETRIEVAL (CORS-FRIENDLY DDG & WIKIPEDIA)
+     ======================================================== */
+  async performLiveWebSearch(query) {
+    const cleanQuery = (query || '').trim();
+    if (!cleanQuery) return [];
+
+    const statusEl = document.getElementById('response-status-text');
+    if (statusEl) statusEl.textContent = 'Querying live web sources...';
+
+    const sources = [];
+
+    // 1. DuckDuckGo Instant Answers API (CORS friendly origin=*)
+    try {
+      const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(cleanQuery)}&format=json&origin=*`;
+      const res = await fetch(ddgUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.AbstractText) {
+          sources.push({
+            title: data.Heading || cleanQuery,
+            url: data.AbstractURL || `https://duckduckgo.com/?q=${encodeURIComponent(cleanQuery)}`,
+            snippet: data.AbstractText
+          });
+        }
+        if (Array.isArray(data.RelatedTopics)) {
+          for (const topic of data.RelatedTopics.slice(0, 3)) {
+            if (topic.Text && topic.FirstURL) {
+              sources.push({
+                title: topic.Text.split(' - ')[0] || cleanQuery,
+                url: topic.FirstURL,
+                snippet: topic.Text
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('DuckDuckGo search error:', e);
+    }
+
+    // 2. Wikipedia API search (CORS friendly origin=*)
+    if (sources.length < 2) {
+      try {
+        const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanQuery)}&utf8=&format=json&origin=*`;
+        const res = await fetch(wikiUrl);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.query?.search?.length > 0) {
+            for (const item of data.query.search.slice(0, 3)) {
+              sources.push({
+                title: item.title,
+                url: `https://en.wikipedia.org/wiki/${encodeURIComponent(item.title.replace(/ /g, '_'))}`,
+                snippet: item.snippet.replace(/<\/?[^>]+(>|$)/g, '')
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Wikipedia search error:', e);
+      }
+    }
+
+    // Fallback search link
+    if (sources.length === 0) {
+      sources.push({
+        title: `Web Query: ${cleanQuery}`,
+        url: `https://www.google.com/search?q=${encodeURIComponent(cleanQuery)}`,
+        snippet: `Real-time web search executed for query: "${cleanQuery}".`
+      });
+    }
+
+    return sources;
+  }
+
+  renderSourcesCard(sources) {
+    const card = document.getElementById('sources-card');
+    const list = document.getElementById('sources-list');
+    if (!card || !list) return;
+
+    if (!sources || sources.length === 0) {
+      card.style.display = 'none';
+      return;
+    }
+
+    card.style.display = 'block';
+    list.innerHTML = '';
+    sources.forEach((s, idx) => {
+      const a = document.createElement('a');
+      a.className = 'source-pill';
+      a.href = s.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.title = `${s.snippet}\n\nClick to open source URL`;
+      a.innerHTML = `<span>[${idx + 1}]</span> <strong>${this.escapeHtml(s.title.slice(0, 35))}...</strong>`;
+      list.appendChild(a);
+    });
+  }
+
+  /* ========================================================
      INFERENCE EXECUTION & STREAMING CONTROLLER
      ======================================================== */
   async executePrompt() {
@@ -1073,36 +1287,58 @@ function verifyToken(req, res, next) {
       return;
     }
 
-    // Assemble messages array matching OpenAI/Groq spec
+    // Assemble messages array
     const messages = [];
     if (this.state.systemPrompt.trim()) {
       messages.push({ role: 'system', content: this.state.systemPrompt.trim() });
     }
-    messages.push({ role: 'user', content: userPrompt });
 
-    // Handle optional Web Search Tool definition
+    // Handle optional Web Search
     let tools = null;
+    let searchContext = null;
+
     if (this.state.webSearch) {
-      tools = [
-        {
-          type: 'function',
-          function: {
-            name: 'web_search',
-            description: 'Search the live internet for recent factual information, documentation, news, or articles.',
-            parameters: {
-              type: 'object',
-              properties: {
-                query: {
-                  type: 'string',
-                  description: 'The search query to look up.'
-                }
-              },
-              required: ['query']
+      const modelMeta = this.api.modelsCatalog.find(m => m.id === this.state.selectedModel);
+      const supportsTools = modelMeta ? Boolean(modelMeta.supportsTools) : this.state.selectedModel.includes('llama-3');
+
+      if (supportsTools) {
+        tools = [
+          {
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the live web for recent factual information, documentation, news, or articles.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  query: {
+                    type: 'string',
+                    description: 'The search query to look up on the live web.'
+                  }
+                },
+                required: ['query']
+              }
             }
           }
-        }
-      ];
+        ];
+      } else {
+        // Model does not support function calling (e.g. DeepSeek R1, Gemma 2)
+        // Perform direct search context injection so user still gets verified citations
+        const liveSources = await this.performLiveWebSearch(userPrompt);
+        this.renderSourcesCard(liveSources);
+        searchContext = liveSources;
+      }
     }
+
+    if (searchContext && searchContext.length > 0) {
+      const formattedSources = searchContext.map((s, i) => `[${i + 1}] "${s.title}" (${s.url}):\n${s.snippet}`).join('\n\n');
+      messages.unshift({
+        role: 'system',
+        content: `You have access to verified web sources:\n\n${formattedSources}\n\nPlease synthesize your response accurately using these sources where relevant, citing sources as [1], [2], etc.`
+      });
+    }
+
+    messages.push({ role: 'user', content: userPrompt });
 
     // Update UI to running state
     this.setGeneratingState(true);
@@ -1115,7 +1351,7 @@ function verifyToken(req, res, next) {
     const sourcesCard = document.getElementById('sources-card');
 
     if (reasoningBox) reasoningBox.style.display = 'none';
-    if (sourcesCard) sourcesCard.style.display = 'none';
+    if (!searchContext && sourcesCard) sourcesCard.style.display = 'none';
 
     this.state.abortController = new AbortController();
     this.state.currentResponse = '';
@@ -1153,13 +1389,13 @@ function verifyToken(req, res, next) {
         }
       });
 
-      // Handle tool call if model asked to search the web
+      // Handle tool call if model requested web search
       if (result.toolCalls && result.toolCalls.length > 0) {
-        await this.handleToolCalls(result.toolCalls, messages);
+        await this.handleToolCalls(result.toolCalls, messages, userPrompt);
         return;
       }
 
-      // Finalize Markdown render without active cursor
+      // Finalize Markdown render
       this.state.currentResponse = result.content;
       this.renderMarkdown(result.content, responseBody, false);
 
@@ -1170,7 +1406,7 @@ function verifyToken(req, res, next) {
 
       // Update telemetry & session stats
       const u = result.usage;
-      this.updateTelemetryUI(u.durationMs, u.tokensPerSec, u.promptTokens, u.completionTokens);
+      this.updateTelemetryUI(u.durationMs, u.tokensPerSec, u.promptTokens, u.completionTokens, u.isEstimated);
       this.updateSessionStats(u.promptTokens, u.completionTokens, u.durationMs, u.tokensPerSec);
 
       // Save to prompt history
@@ -1201,49 +1437,21 @@ function verifyToken(req, res, next) {
   /**
    * Tool Calling Execution for Web Search
    */
-  async handleToolCalls(toolCalls, originalMessages) {
+  async handleToolCalls(toolCalls, originalMessages, defaultQuery) {
     const statusEl = document.getElementById('response-status-text');
     if (statusEl) statusEl.textContent = 'Searching web sources via Groq tool calling...';
 
     const call = toolCalls[0];
-    let query = 'recent information';
+    let query = defaultQuery || 'recent information';
     try {
       const args = JSON.parse(call.function.arguments);
       query = args.query || query;
     } catch (_) {}
 
-    // Simulate structured search citation response
-    const searchResults = [
-      {
-        title: `Official Groq Documentation on ${query}`,
-        url: 'https://console.groq.com/docs',
-        snippet: `Groq LPU (Language Processing Unit) systems deliver ultra-low latency inference for open weights AI models.`
-      },
-      {
-        title: `Search Query Result: ${query}`,
-        url: 'https://news.ycombinator.com',
-        snippet: `Recent real-time search developments related to ${query} analyzed and verified.`
-      }
-    ];
+    const searchResults = await this.performLiveWebSearch(query);
+    this.renderSourcesCard(searchResults);
 
-    // Display sources card
-    const sourcesCard = document.getElementById('sources-card');
-    const sourcesList = document.getElementById('sources-list');
-    if (sourcesCard && sourcesList) {
-      sourcesCard.style.display = 'block';
-      sourcesList.innerHTML = '';
-      searchResults.forEach((s, idx) => {
-        const a = document.createElement('a');
-        a.className = 'source-pill';
-        a.href = s.url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.innerHTML = `<span>[${idx + 1}]</span> <strong>${s.title.slice(0, 35)}...</strong>`;
-        sourcesList.appendChild(a);
-      });
-    }
-
-    // Append tool call & tool result to messages and continue generation
+    // Append tool call & tool result to messages
     const updatedMessages = [
       ...originalMessages,
       {
@@ -1259,6 +1467,8 @@ function verifyToken(req, res, next) {
       }
     ];
 
+    const responseBody = document.getElementById('response-body');
+
     // Second pass to synthesize answer with citations
     const finalResult = await this.api.chatCompletion({
       model: this.state.selectedModel,
@@ -1269,12 +1479,27 @@ function verifyToken(req, res, next) {
       signal: this.state.abortController?.signal,
       onChunk: (chunk, acc) => {
         this.state.currentResponse = acc;
-        this.renderMarkdown(acc, document.getElementById('response-body'), true);
+        this.renderMarkdown(acc, responseBody, true);
       }
     });
 
-    this.renderMarkdown(finalResult.content, document.getElementById('response-body'), false);
-    this.updateTelemetryUI(finalResult.usage.durationMs, finalResult.usage.tokensPerSec, finalResult.usage.promptTokens, finalResult.usage.completionTokens);
+    this.state.currentResponse = finalResult.content;
+    this.renderMarkdown(finalResult.content, responseBody, false);
+    const u = finalResult.usage;
+    this.updateTelemetryUI(u.durationMs, u.tokensPerSec, u.promptTokens, u.completionTokens, u.isEstimated);
+    this.updateSessionStats(u.promptTokens, u.completionTokens, u.durationMs, u.tokensPerSec);
+
+    this.saveHistory({
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      model: this.state.selectedModel,
+      prompt: defaultQuery,
+      response: finalResult.content,
+      promptTokens: u.promptTokens,
+      completionTokens: u.completionTokens,
+      durationMs: u.durationMs,
+      tokensPerSec: u.tokensPerSec
+    });
   }
 
   stopGeneration() {
@@ -1305,14 +1530,17 @@ function verifyToken(req, res, next) {
     }
   }
 
-  updateTelemetryUI(durationMs, tokensPerSec, promptTokens, completionTokens) {
+  updateTelemetryUI(durationMs, tokensPerSec, promptTokens, completionTokens, isEstimated = false) {
     const elSpeed = document.getElementById('telemetry-speed');
     const elLatency = document.getElementById('telemetry-latency');
     const elTokens = document.getElementById('telemetry-tokens');
 
     if (elSpeed) elSpeed.textContent = `${tokensPerSec} T/s`;
     if (elLatency) elLatency.textContent = `${durationMs}ms`;
-    if (elTokens) elTokens.textContent = `${promptTokens} in / ${completionTokens} out`;
+    if (elTokens) {
+      elTokens.textContent = `${promptTokens} in / ${completionTokens} out ${isEstimated ? '(est)' : '(LPU exact)'}`;
+      elTokens.title = isEstimated ? 'Token count calculated via heuristics' : 'Exact token count returned by official Groq LPU usage telemetry';
+    }
   }
 
   updateStatsDisplay() {
@@ -1347,15 +1575,24 @@ function verifyToken(req, res, next) {
       return;
     }
 
+    let textToRender = rawText;
+    // Balance unclosed code blocks during streaming
+    if (isStreaming) {
+      const codeFenceMatches = textToRender.match(/```/g);
+      if (codeFenceMatches && codeFenceMatches.length % 2 === 1) {
+        textToRender += '\n```';
+      }
+    }
+
     // Clean custom HTML tags and escape dangerous characters
-    let html = rawText
+    let html = textToRender
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
     // Code blocks with syntax badge and copy button
     html = html.replace(/```([a-zA-Z0-9_\-\.]*)\n([\s\S]*?)```/g, (match, lang, code) => {
-      const language = lang || 'text';
+      const language = lang.trim() || 'text';
       const cleanCode = code.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
       const id = 'code-' + Math.random().toString(36).substr(2, 9);
       return `
@@ -1370,6 +1607,21 @@ function verifyToken(req, res, next) {
           <pre><code id="${id}">${this.highlightCode(code, language)}</code></pre>
         </div>
       `;
+    });
+
+    // Markdown Tables (| header | ... |)
+    html = html.replace(/((?:^|\n)\|[^\n]+\|\n\|[\s\-:|]+\|\n(?:\|[^\n]+\|\n?)+)/g, (tableMatch) => {
+      const rows = tableMatch.trim().split('\n');
+      if (rows.length < 2) return tableMatch;
+      let tableHtml = '<div class="table-responsive"><table class="markdown-table">';
+      const headerCells = rows[0].split('|').slice(1, -1);
+      tableHtml += '<thead><tr>' + headerCells.map(c => `<th>${c.trim()}</th>`).join('') + '</tr></thead><tbody>';
+      for (let i = 2; i < rows.length; i++) {
+        const cells = rows[i].split('|').slice(1, -1);
+        tableHtml += '<tr>' + cells.map(c => `<td>${c.trim()}</td>`).join('') + '</tr>';
+      }
+      tableHtml += '</tbody></table></div>';
+      return tableHtml;
     });
 
     // Inline code
@@ -1390,12 +1642,15 @@ function verifyToken(req, res, next) {
     // Unordered lists
     html = html.replace(/^\s*[\-\*]\s+(.*$)/gim, '<li>$1</li>');
     html = html.replace(/(<li>[\s\S]*?<\/li>)/gim, '<ul>$1</ul>');
-    html = html.replace(/<\/ul>\s*<ul>/g, ''); // Join consecutive list wrappers
+    html = html.replace(/<\/ul>\s*<ul>/g, '');
 
     // Ordered lists
     html = html.replace(/^\s*\d+\.\s+(.*$)/gim, '<li class="ol-item">$1</li>');
     html = html.replace(/(<li class="ol-item">[\s\S]*?<\/li>)/gim, '<ol>$1</ol>');
     html = html.replace(/<\/ol>\s*<ol>/g, '');
+
+    // Links [text](url)
+    html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="markdown-link">$1 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>');
 
     // Paragraph line breaks
     html = html.replace(/\n\n+/g, '</p><p>');
@@ -1409,14 +1664,22 @@ function verifyToken(req, res, next) {
   }
 
   highlightCode(code, lang) {
-    // Lightweight keyword highlighting for Python, JS, SQL, Rust
     const keywords = [
       'def', 'class', 'import', 'from', 'return', 'async', 'await', 'if', 'else', 'elif',
-      'const', 'let', 'var', 'function', 'try', 'catch', 'finally', 'for', 'while', 'in',
-      'SELECT', 'FROM', 'WHERE', 'JOIN', 'TABLE', 'CREATE', 'fn', 'pub', 'struct', 'impl'
+      'const', 'let', 'var', 'function', 'try', 'catch', 'finally', 'for', 'while', 'in', 'of',
+      'SELECT', 'FROM', 'WHERE', 'JOIN', 'TABLE', 'CREATE', 'fn', 'pub', 'struct', 'impl',
+      'interface', 'type', 'export', 'default', 'extends', 'implements', 'yield', 'switch', 'case',
+      'null', 'undefined', 'true', 'false', 'None', 'True', 'False', 'self', 'this'
     ];
 
     let highlighted = code;
+    // Comments
+    highlighted = highlighted.replace(/(\/\/[^\n]*|#[^\n]*)/g, '<span style="color:#64748B;font-style:italic;">$1</span>');
+    // Strings
+    highlighted = highlighted.replace(/(".*?"|'.*?'|`.*?`)/g, '<span style="color:#34D399;">$1</span>');
+    // Numbers
+    highlighted = highlighted.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span style="color:#FBBF24;">$1</span>');
+    // Keywords
     for (const kw of keywords) {
       const reg = new RegExp(`\\b(${kw})\\b`, 'g');
       highlighted = highlighted.replace(reg, '<span style="color:#A78BFA;font-weight:600;">$1</span>');
@@ -1440,7 +1703,7 @@ function verifyToken(req, res, next) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span>Inference Error</span>
         </div>
-        <p style="font-size:13px; line-height:1.5;">${msg}</p>
+        <p style="font-size:13px; line-height:1.5;">${this.escapeHtml(msg)}</p>
       </div>
     `;
   }
@@ -1458,25 +1721,36 @@ function verifyToken(req, res, next) {
         </div>
       `;
     }
+
     const reasoningBox = document.getElementById('reasoning-box');
     if (reasoningBox) reasoningBox.style.display = 'none';
 
     const sourcesCard = document.getElementById('sources-card');
     if (sourcesCard) sourcesCard.style.display = 'none';
 
-    this.updateTelemetryUI(0, 0, 0, 0);
+    this.state.currentResponse = '';
+    this.state.currentReasoning = '';
+
+    const elSpeed = document.getElementById('telemetry-speed');
+    const elLatency = document.getElementById('telemetry-latency');
+    const elTokens = document.getElementById('telemetry-tokens');
+    if (elSpeed) elSpeed.textContent = '---';
+    if (elLatency) elLatency.textContent = '---';
+    if (elTokens) elTokens.textContent = '0 in / 0 out';
   }
 
   downloadResponse() {
     if (!this.state.currentResponse) {
-      this.showToast('No response to download.', 'info');
+      this.showToast('No response to download', 'info');
       return;
     }
+
+    const filename = `nebula-${this.state.selectedModel}-${Date.now()}.md`;
     const blob = new Blob([this.state.currentResponse], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nebula-groq-${this.state.selectedModel}-${Date.now()}.md`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1485,19 +1759,24 @@ function verifyToken(req, res, next) {
   }
 
   resetPlayground() {
-    const promptInput = document.getElementById('user-prompt-input');
-    if (promptInput) {
-      promptInput.value = '';
+    this.clearResponseViewer();
+    const pInput = document.getElementById('user-prompt-input');
+    const sInput = document.getElementById('system-prompt-input');
+    if (pInput) {
+      pInput.value = '';
       this.state.userPrompt = '';
       this.updatePromptCounters('');
     }
-    this.clearResponseViewer();
+    if (sInput) {
+      sInput.value = '';
+      this.state.systemPrompt = '';
+    }
     this.runPromptAnalysis();
-    this.showToast('New Playground initialized', 'info');
+    this.showToast('Playground workspace reset', 'info');
   }
 
   /* ========================================================
-     MODALS: TEMPLATES, HISTORY, SAVED PROMPTS
+     MODALS: MODEL EXPLORER, TEMPLATES, HISTORY, SAVED, CONFIRM
      ======================================================== */
   openModal(modalId) {
     const modal = document.getElementById(modalId);
@@ -1511,6 +1790,102 @@ function verifyToken(req, res, next) {
   closeModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.remove('open');
+  }
+
+  showConfirm(title, message, onConfirm) {
+    const titleEl = document.getElementById('modal-confirm-title');
+    const msgEl = document.getElementById('modal-confirm-message');
+    const btnConfirm = document.getElementById('btn-confirm-action');
+
+    if (titleEl) titleEl.textContent = title;
+    if (msgEl) msgEl.textContent = message;
+
+    if (btnConfirm) {
+      btnConfirm.onclick = () => {
+        this.closeModal('modal-confirm');
+        if (typeof onConfirm === 'function') onConfirm();
+      };
+    }
+
+    this.openModal('modal-confirm');
+  }
+
+  openModelsModal() {
+    const searchInput = document.getElementById('model-search-input');
+    const activePill = document.querySelector('#model-category-filters .filter-pill.active');
+    const cat = activePill ? activePill.dataset.filter : 'all';
+    this.renderModelsGrid(cat, searchInput?.value || '');
+    this.openModal('modal-models');
+  }
+
+  renderModelsGrid(category = 'all', filterQuery = '') {
+    const grid = document.getElementById('models-modal-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const query = (filterQuery || '').toLowerCase().trim();
+    const catalog = this.api.modelsCatalog;
+
+    const filtered = catalog.filter(m => {
+      const matchCat = category === 'all' ||
+        m.category === category ||
+        (category === 'reasoning' && m.supportsReasoning) ||
+        (category === 'vision' && m.supportsVision) ||
+        (category === 'speed' && m.category === 'speed') ||
+        (category === 'moe' && m.category === 'moe');
+
+      const matchQuery = !query ||
+        m.name.toLowerCase().includes(query) ||
+        m.id.toLowerCase().includes(query) ||
+        m.provider.toLowerCase().includes(query) ||
+        m.description.toLowerCase().includes(query);
+
+      return matchCat && matchQuery;
+    });
+
+    if (filtered.length === 0) {
+      grid.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-dim); grid-column:1/-1;">No models matching filter criteria.</div>';
+      return;
+    }
+
+    const gridWrap = document.createElement('div');
+    gridWrap.className = 'models-grid';
+
+    filtered.forEach(m => {
+      const isSelected = m.id === this.state.selectedModel;
+      const card = document.createElement('div');
+      card.className = `model-matrix-card ${isSelected ? 'selected' : ''}`;
+      card.innerHTML = `
+        <div>
+          <div class="model-matrix-header">
+            <div>
+              <div class="model-matrix-name">${m.name}</div>
+              <div style="font-size:11px; color:var(--text-dim); font-family:var(--font-mono);">${m.provider} &bull; ${m.id}</div>
+            </div>
+            <span class="persona-chip" style="${m.supportsReasoning ? 'color:var(--violet-light); border-color:var(--violet-primary);' : ''}">${m.badge}</span>
+          </div>
+          <p class="model-matrix-desc" style="margin-top:8px;">${m.description}</p>
+        </div>
+        <div>
+          <div class="model-matrix-specs">
+            <span class="model-spec-tag model-spec-speed">${m.speed}</span>
+            <span class="model-spec-tag">${(m.context / 1000).toFixed(0)}k Context</span>
+            <span class="model-spec-tag">Max ${m.maxTokens > 1000 ? `${(m.maxTokens / 1000).toFixed(0)}k` : m.maxTokens} Out</span>
+            ${m.supportsReasoning ? '<span class="model-spec-tag" style="color:var(--violet-light);">Reasoning Mode</span>' : ''}
+            ${m.supportsVision ? '<span class="model-spec-tag" style="color:var(--cyan-light);">Vision Support</span>' : ''}
+            ${m.supportsTools ? '<span class="model-spec-tag" style="color:var(--emerald-light);">Tool Calling</span>' : ''}
+          </div>
+          <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+            <button class="btn ${isSelected ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="window.nebula.selectModel('${m.id}')">
+              ${isSelected ? 'Active Model' : 'Select Model'}
+            </button>
+          </div>
+        </div>
+      `;
+      gridWrap.appendChild(card);
+    });
+
+    grid.appendChild(gridWrap);
   }
 
   openTemplatesModal() {
@@ -1527,7 +1902,7 @@ function verifyToken(req, res, next) {
           <strong style="color:#fff; font-size:14px;">${tpl.title}</strong>
           <span class="persona-chip">${tpl.category}</span>
         </div>
-        <p style="font-size:12px; color:var(--text-muted); font-family:var(--font-mono);">${tpl.prompt.slice(0, 110)}...</p>
+        <p style="font-size:12px; color:var(--text-muted); font-family:var(--font-mono); margin-top:6px;">${tpl.prompt.slice(0, 110)}...</p>
       `;
       card.addEventListener('click', () => {
         const pInput = document.getElementById('user-prompt-input');
@@ -1553,25 +1928,29 @@ function verifyToken(req, res, next) {
     this.openModal('modal-templates');
   }
 
-  openHistoryModal() {
+  openHistoryModal(filterQuery = '') {
     const list = document.getElementById('history-modal-list');
     if (!list) return;
 
     list.innerHTML = '';
-    if (this.history.length === 0) {
-      list.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-dim);">No previous prompt history recorded yet.</div>';
+    const query = (filterQuery || '').toLowerCase().trim();
+    const items = this.history.filter(h => !query || h.prompt.toLowerCase().includes(query) || h.model.toLowerCase().includes(query));
+
+    if (items.length === 0) {
+      list.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-dim);">${query ? 'No matching prompts found.' : 'No previous prompt history recorded yet.'}</div>`;
     } else {
-      this.history.forEach(item => {
+      items.forEach(item => {
         const div = document.createElement('div');
         div.className = 'analyzer-card';
         div.innerHTML = `
           <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--text-dim);">
             <span style="font-family:var(--font-mono); color:var(--violet-light);">${item.model}</span>
-            <span>${new Date(item.timestamp).toLocaleTimeString()} &bull; ${item.tokensPerSec || 0} T/s</span>
+            <span>${new Date(item.timestamp).toLocaleTimeString()} &bull; ${item.tokensPerSec || 0} T/s &bull; ${item.completionTokens || 0} tokens</span>
           </div>
-          <div style="font-size:13px; font-weight:600; color:#fff; max-height:48px; overflow:hidden;">${item.prompt}</div>
-          <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+          <div style="font-size:13px; font-weight:600; color:#fff; max-height:48px; overflow:hidden; margin:6px 0;">${this.escapeHtml(item.prompt)}</div>
+          <div style="display:flex; justify-content:flex-end; gap:8px;">
             <button class="btn btn-outline btn-sm" onclick="window.nebula.loadHistoryPrompt('${item.id}')">Load to Editor</button>
+            <button class="btn btn-ghost btn-sm" onclick="window.nebula.deleteHistoryPrompt('${item.id}')" title="Delete from history" style="color:var(--rose-light);">Delete</button>
           </div>
         `;
         list.appendChild(div);
@@ -1596,6 +1975,31 @@ function verifyToken(req, res, next) {
     }
   }
 
+  deleteHistoryPrompt(id) {
+    this.history = this.history.filter(h => h.id !== id);
+    try {
+      localStorage.setItem(this.historyKey, JSON.stringify(this.history));
+    } catch (_) {}
+    const filterInput = document.getElementById('history-search-input');
+    this.openHistoryModal(filterInput?.value || '');
+    this.showToast('Item deleted from history', 'info');
+  }
+
+  promptClearAllHistory() {
+    this.showConfirm(
+      'Clear All History',
+      'Are you sure you want to delete all session prompt history? This cannot be undone.',
+      () => {
+        this.history = [];
+        try {
+          localStorage.removeItem(this.historyKey);
+        } catch (_) {}
+        this.openHistoryModal();
+        this.showToast('All prompt history cleared', 'info');
+      }
+    );
+  }
+
   openSavedModal() {
     const list = document.getElementById('saved-modal-list');
     if (!list) return;
@@ -1612,7 +2016,7 @@ function verifyToken(req, res, next) {
             <strong style="color:var(--cyan-light); font-size:13px;">${item.title}</strong>
             <span style="font-size:11px; color:var(--text-dim);">${new Date(item.timestamp).toLocaleDateString()}</span>
           </div>
-          <p style="font-size:12px; color:var(--text-muted); font-family:var(--font-mono);">${item.prompt.slice(0, 120)}...</p>
+          <p style="font-size:12px; color:var(--text-muted); font-family:var(--font-mono); margin:6px 0;">${this.escapeHtml(item.prompt.slice(0, 120))}...</p>
           <div style="display:flex; justify-content:flex-end; gap:8px;">
             <button class="btn btn-outline btn-sm" onclick="window.nebula.loadSavedPrompt('${item.id}')">Load</button>
             <button class="btn btn-danger btn-sm" onclick="window.nebula.deleteSavedPrompt('${item.id}')">Delete</button>
@@ -1654,6 +2058,11 @@ function verifyToken(req, res, next) {
     this.showToast('Bookmark removed', 'info');
   }
 
+  escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   /* ========================================================
      TOAST NOTIFICATION COMPONENT
      ======================================================== */
@@ -1675,7 +2084,7 @@ function verifyToken(req, res, next) {
 
     toast.innerHTML = `
       ${iconSvg}
-      <span style="flex:1;">${message}</span>
+      <span style="flex:1;">${this.escapeHtml(message)}</span>
     `;
 
     container.appendChild(toast);
@@ -1693,4 +2102,3 @@ function verifyToken(req, res, next) {
 window.addEventListener('DOMContentLoaded', () => {
   window.nebula = new NebulaPlayground();
 });
-

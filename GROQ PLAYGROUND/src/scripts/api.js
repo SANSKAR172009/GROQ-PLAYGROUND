@@ -2,9 +2,11 @@
  * NEBULA — Groq Intelligence Playground
  * api.js — Official Groq API Client & Streaming Controller
  *
- * Security: Visitor API keys are kept strictly in volatile memory or browser session
- * storage. Keys are never logged, never sent to third-party databases, and only
- * transmitted directly to the official Groq API endpoint.
+ * Security Guarantee:
+ * - Visitor API keys are kept strictly in volatile memory or browser session/local storage.
+ * - Keys are never sent to third-party databases or analytics.
+ * - Inference requests are dispatched directly to the official Groq API (https://api.groq.com/openai/v1)
+ *   or optional Vercel Edge proxy without logging.
  */
 
 class GroqClient {
@@ -16,7 +18,7 @@ class GroqClient {
     this.proxyEndpoint = '/api/groq';
     this.directEndpoint = 'https://api.groq.com/openai/v1';
 
-    // Curated official Groq models metadata with context limits and capabilities
+    // Curated official Groq models catalog with context limits and capabilities
     this.modelsCatalog = [
       {
         id: 'llama-3.3-70b-versatile',
@@ -27,9 +29,10 @@ class GroqClient {
         speed: '~280 T/s',
         category: 'flagship',
         badge: 'Flagship',
-        description: 'State-of-the-art open weights model with performance competitive with top closed models.',
+        description: 'State-of-the-art open weights model with performance competitive with top closed models. Excellent for complex reasoning, analysis, and coding.',
         supportsReasoning: false,
         supportsVision: false,
+        supportsTools: true,
         recommendedTemp: 0.7
       },
       {
@@ -41,9 +44,10 @@ class GroqClient {
         speed: '~840 T/s',
         category: 'speed',
         badge: 'Ultra Fast',
-        description: 'Incredible inference velocity with full 128k context. Perfect for low-latency production tasks.',
+        description: 'Incredible inference velocity (up to 840+ tokens/sec) with full 128k context. Perfect for low-latency agent loops and real-time interactive tasks.',
         supportsReasoning: false,
         supportsVision: false,
+        supportsTools: true,
         recommendedTemp: 0.7
       },
       {
@@ -55,9 +59,10 @@ class GroqClient {
         speed: '~260 T/s',
         category: 'reasoning',
         badge: 'Reasoning',
-        description: 'Native chain-of-thought reasoning model trained with reinforcement learning for math, logic, and code.',
+        description: 'Native chain-of-thought reasoning model trained with reinforcement learning for formal math, deductive logic, and code architecture.',
         supportsReasoning: true,
         supportsVision: false,
+        supportsTools: false,
         recommendedTemp: 0.6
       },
       {
@@ -69,9 +74,25 @@ class GroqClient {
         speed: '~390 T/s',
         category: 'reasoning',
         badge: 'Reasoning',
-        description: 'DeepSeek R1 reasoning distilled into Qwen 32B architecture. Exceptional code and math deduction.',
+        description: 'DeepSeek R1 reasoning distilled into Qwen 32B architecture. Outstanding density of mathematical and algorithmic deduction.',
         supportsReasoning: true,
         supportsVision: false,
+        supportsTools: false,
+        recommendedTemp: 0.6
+      },
+      {
+        id: 'qwen-qwq-32b',
+        name: 'Qwen QwQ 32B Preview',
+        provider: 'Alibaba',
+        context: 128000,
+        maxTokens: 8192,
+        speed: '~380 T/s',
+        category: 'reasoning',
+        badge: 'Reasoning',
+        description: 'Specialized reasoning model optimized for deep thinking, step-by-step problem deconstruction, and programmatic verification.',
+        supportsReasoning: true,
+        supportsVision: false,
+        supportsTools: false,
         recommendedTemp: 0.6
       },
       {
@@ -81,11 +102,12 @@ class GroqClient {
         context: 128000,
         maxTokens: 8192,
         speed: '~280 T/s',
-        category: 'general',
+        category: 'flagship',
         badge: 'Versatile',
         description: 'High-capability multi-task model with extensive knowledge base and multilingual support.',
         supportsReasoning: false,
         supportsVision: false,
+        supportsTools: true,
         recommendedTemp: 0.7
       },
       {
@@ -97,9 +119,25 @@ class GroqClient {
         speed: '~420 T/s',
         category: 'vision',
         badge: 'Vision',
-        description: 'Multimodal language and vision model capable of image comprehension and visual question answering.',
+        description: 'Multimodal language and vision model capable of image comprehension, document analysis, and visual question answering.',
         supportsReasoning: false,
         supportsVision: true,
+        supportsTools: false,
+        recommendedTemp: 0.7
+      },
+      {
+        id: 'llama-3.2-90b-vision-preview',
+        name: 'Llama 3.2 90B Vision',
+        provider: 'Meta',
+        context: 128000,
+        maxTokens: 8192,
+        speed: '~180 T/s',
+        category: 'vision',
+        badge: 'Multimodal',
+        description: 'Flagship multimodal vision model combining high-resolution visual comprehension with deep language reasoning.',
+        supportsReasoning: false,
+        supportsVision: true,
+        supportsTools: false,
         recommendedTemp: 0.7
       },
       {
@@ -114,6 +152,7 @@ class GroqClient {
         description: 'Sparse mixture of experts model with 32k context. Superior multilingual syntax and instruction following.',
         supportsReasoning: false,
         supportsVision: false,
+        supportsTools: false,
         recommendedTemp: 0.7
       },
       {
@@ -123,21 +162,22 @@ class GroqClient {
         context: 8192,
         maxTokens: 8192,
         speed: '~520 T/s',
-        category: 'general',
+        category: 'speed',
         badge: 'Google',
         description: 'Google high-efficiency instruction-tuned model with strong reasoning, safety, and conciseness.',
         supportsReasoning: false,
         supportsVision: false,
+        supportsTools: false,
         recommendedTemp: 0.7
       }
     ];
 
-    // Initialize saved key if user explicitly consented to remember
+    // Load persisted key if user previously agreed to remember
     this.loadPersistedKey();
   }
 
   /**
-   * Load key from localStorage or sessionStorage with fallback
+   * Load key from localStorage or sessionStorage
    */
   loadPersistedKey() {
     try {
@@ -158,7 +198,7 @@ class GroqClient {
   }
 
   /**
-   * Set API key with user's persistence preference
+   * Set API key with explicit user persistence preference
    */
   setApiKey(key, remember = false) {
     if (!key || typeof key !== 'string') {
@@ -186,7 +226,7 @@ class GroqClient {
   }
 
   /**
-   * Remove key from memory and local/session storage
+   * Disconnect and purge key from memory and browser storage
    */
   clearApiKey() {
     this.apiKey = null;
@@ -209,6 +249,10 @@ class GroqClient {
     return `${this.apiKey.slice(0, 6)}••••••••${this.apiKey.slice(-4)}`;
   }
 
+  setUseProxy(enable) {
+    this.useProxy = Boolean(enable);
+  }
+
   getBaseUrl() {
     return this.useProxy ? this.proxyEndpoint : this.directEndpoint;
   }
@@ -226,7 +270,7 @@ class GroqClient {
     if (!trimmed.startsWith('gsk_')) {
       return {
         valid: false,
-        error: 'Invalid key format. Groq API keys start with "gsk_". Please verify your key at console.groq.com/keys.'
+        error: 'Invalid key format. Groq API keys start with "gsk_". Please generate a free key at https://console.groq.com/keys.'
       };
     }
 
@@ -258,7 +302,7 @@ class GroqClient {
       if (response.status === 429) {
         return {
           valid: false,
-          error: 'Rate limit encountered (429). Your Groq key is active but currently throttled. Please try again shortly.'
+          error: 'Rate limit encountered (429). Your Groq key is active but currently throttled. Please try again in a few moments.'
         };
       }
 
@@ -276,7 +320,7 @@ class GroqClient {
     } catch (err) {
       return {
         valid: false,
-        error: `Network or CORS error connecting to Groq API (${err.message}). If using browser extensions that block third-party requests, please whitelist console.groq.com or toggle Serverless Proxy mode.`
+        error: `Network or CORS error connecting to Groq API (${err.message}). If using privacy extensions that block third-party requests, whitelist api.groq.com or toggle Serverless Proxy mode.`
       };
     }
   }
@@ -293,11 +337,10 @@ class GroqClient {
       const res = await this.validateKey();
       if (res.valid && Array.isArray(res.models)) {
         const liveIds = new Set(res.models.map(m => m.id));
-        // Enrich existing catalog with active status
         const catalogMap = new Map(this.modelsCatalog.map(m => [m.id, m]));
         const combined = [];
 
-        // Add known models that are active
+        // Add known models with active status
         for (const catModel of this.modelsCatalog) {
           if (liveIds.has(catModel.id)) {
             combined.push({ ...catModel, active: true });
@@ -306,10 +349,10 @@ class GroqClient {
           }
         }
 
-        // Add any newly discovered models from Groq that aren't in catalog
+        // Add any newly released models from Groq not in static catalog
         for (const liveM of res.models) {
           if (!catalogMap.has(liveM.id)) {
-            const isReasoning = liveM.id.toLowerCase().includes('r1') || liveM.id.toLowerCase().includes('reason');
+            const isReasoning = liveM.id.toLowerCase().includes('r1') || liveM.id.toLowerCase().includes('reason') || liveM.id.toLowerCase().includes('qwq');
             combined.push({
               id: liveM.id,
               name: liveM.id,
@@ -318,10 +361,11 @@ class GroqClient {
               maxTokens: 8192,
               speed: '~300 T/s',
               category: isReasoning ? 'reasoning' : 'general',
-              badge: isReasoning ? 'Reasoning' : 'Live',
+              badge: isReasoning ? 'Reasoning' : 'Live API',
               description: `Dynamic Groq model provided by ${liveM.owned_by || 'GroqCloud'}.`,
               supportsReasoning: isReasoning,
               supportsVision: liveM.id.includes('vision'),
+              supportsTools: liveM.id.includes('llama-3'),
               recommendedTemp: 0.7,
               active: true
             });
@@ -331,7 +375,7 @@ class GroqClient {
         return combined;
       }
     } catch (e) {
-      console.warn('Failed to fetch live models list, falling back to curated catalog:', e);
+      console.warn('Failed to fetch live models list, using curated catalog:', e);
     }
 
     return this.modelsCatalog;
@@ -360,7 +404,7 @@ class GroqClient {
     }
 
     const modelMeta = this.modelsCatalog.find(m => m.id === model);
-    const supportsReasoning = modelMeta ? modelMeta.supportsReasoning : (model.includes('r1') || model.includes('reason'));
+    const supportsReasoning = modelMeta ? modelMeta.supportsReasoning : (model.includes('r1') || model.includes('qwq') || model.includes('reason'));
 
     // Payload configuration strictly matching official Groq API spec
     const payload = {
@@ -372,10 +416,15 @@ class GroqClient {
       stream: Boolean(stream)
     };
 
+    if (stream) {
+      // Official Groq parameter to return exact token and time usage in the final streaming chunk
+      payload.stream_options = { include_usage: true };
+    }
+
     if (frequency_penalty !== 0) payload.frequency_penalty = Number(frequency_penalty);
     if (presence_penalty !== 0) payload.presence_penalty = Number(presence_penalty);
 
-    // DeepSeek reasoning parameter if model supports reasoning_effort
+    // DeepSeek/QwQ reasoning parameter if supported
     if (supportsReasoning && reasoning_effort) {
       payload.reasoning_effort = reasoning_effort;
     }
@@ -405,7 +454,7 @@ class GroqClient {
       if (netErr.name === 'AbortError') {
         throw new Error('Request cancelled by user.');
       }
-      throw new Error(`Network failure connecting to Groq (${netErr.message}). Check your internet connection or proxy settings.`);
+      throw new Error(`Network failure connecting to Groq (${netErr.message}). Check internet connectivity or toggle Proxy Mode in Settings.`);
     }
 
     if (!response.ok) {
@@ -468,7 +517,14 @@ class GroqClient {
           completionTokens,
           totalTokens,
           tokensPerSec,
-          durationMs
+          durationMs,
+          isEstimated: !data.usage,
+          groqTiming: data.usage ? {
+            queueTime: data.usage.queue_time,
+            promptTime: data.usage.prompt_time,
+            completionTime: data.usage.completion_time,
+            totalTime: data.usage.total_time
+          } : null
         },
         rawResponse: data
       };
@@ -500,7 +556,7 @@ class GroqClient {
 
         for (const line of lines) {
           const trimmedLine = line.trim();
-          if (!trimmedLine || trimmedLine.startsWith(':')) continue; // Skip comments/empty lines
+          if (!trimmedLine || trimmedLine.startsWith(':')) continue;
 
           if (trimmedLine === 'data: [DONE]') {
             continue;
@@ -511,7 +567,7 @@ class GroqClient {
             try {
               const parsed = JSON.parse(jsonStr);
 
-              // Capture usage if provided in chunk
+              // Capture official usage metadata if provided by Groq
               if (parsed.usage) {
                 usageData = parsed.usage;
               }
@@ -610,7 +666,14 @@ class GroqClient {
         totalTokens,
         tokensPerSec,
         durationMs,
-        timeToFirstToken
+        timeToFirstToken,
+        isEstimated: !usageData,
+        groqTiming: usageData ? {
+          queueTime: usageData.queue_time,
+          promptTime: usageData.prompt_time,
+          completionTime: usageData.completion_time,
+          totalTime: usageData.total_time
+        } : null
       }
     };
   }
@@ -620,7 +683,6 @@ class GroqClient {
    */
   estimateTokenCount(text) {
     if (!text || typeof text !== 'string') return 0;
-    // Common heuristic for English & code: ~4 characters per token
     return Math.max(1, Math.ceil(text.length / 3.8));
   }
 
@@ -628,7 +690,7 @@ class GroqClient {
     if (!Array.isArray(messages)) return 0;
     let chars = 0;
     for (const m of messages) {
-      chars += (m.content ? m.content.length : 0) + 12; // message overhead
+      chars += (m.content ? m.content.length : 0) + 12;
     }
     return Math.max(1, Math.ceil(chars / 3.8));
   }
@@ -637,4 +699,3 @@ class GroqClient {
 // Export singleton instance for browser global
 window.GroqClient = GroqClient;
 window.groqApi = new GroqClient();
-

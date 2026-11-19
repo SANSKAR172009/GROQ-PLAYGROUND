@@ -30,38 +30,43 @@
 
 ### ⚡ Ultra-Low Latency Inference
 - **Streaming Response Engine**: Leverages native `ReadableStream` and Server-Sent Events (SSE) with `TextDecoder` for instantaneous token streaming.
-- **Live Telemetry HUD**: Measures Time-to-First-Token (TTFT), tokens-per-second generation velocity, total duration, prompt tokens, and completion tokens.
-- **Inference Speed Benchmarks**: Live comparison gauges showing speedup multipliers relative to standard GPU cloud baselines.
+- **Official Groq LPU Telemetry**: Sends `stream_options: { include_usage: true }` to capture exact token usage metadata, generation speed (up to 840+ tokens/sec), queue time, and latency directly from Groq LPUs.
+- **Inference Speed Benchmarks**: Live telemetry displays tokens per second, request latency, and input/output token breakdowns.
 
 ### 🧠 DeepSeek R1 Chain-of-Thought Reasoning
-- **Live `<think>` Tag Parser**: Transparently intercepts and separates chain-of-thought internal reasoning from final answer markdown.
-- **Collapsible Reasoning Drawer**: Interactive, pulsing thought monitor with token counters and reasoning step inspectability.
-- **Reasoning Effort Presets**: Configurable reasoning depth (Low, Medium, High).
+- **Live `<think>` Tag Parser**: Transparently intercepts and separates chain-of-thought internal reasoning from final answer markdown during streaming.
+- **Collapsible Reasoning Drawer**: Interactive, pulsing thought monitor with token counters and live elapsed reasoning timers.
+- **Reasoning Effort Presets**: Configurable reasoning depth (Low, Medium, High) for models that support reasoning effort.
+- **Model Compatibility Guardrails**: Explicitly disables reasoning controls for unsupported models with a 1-click option to switch to DeepSeek R1 70B.
 
 ### 🔍 Built-In AI Prompt Analyzer & Structural Classifier
-- **Client-Side Heuristic Classifier**: Evaluates input prompts without sending them anywhere. Automatically identifies prompting styles:
+- **Client-Side Structural Classifier**: Evaluates input prompts 100% locally in the browser with zero external network requests:
   - **Zero-Shot**: Pure instructions or queries without demonstration pairs.
-  - **One-Shot**: Contains a single concrete input/output exemplar.
+  - **One-Shot**: Contains exactly one concrete input/output exemplar pair.
   - **Few-Shot**: Contains $\ge 2$ structured exemplar pairs with format pattern verification.
+  - **Uncertain / Ambiguous**: Identifies loose conversational references (e.g. "for example") lacking structured exemplar syntax.
 - **Prompt Quality Audit**: Rates Clarity, Specificity, Context, and Constraints (0–100 score).
-- **One-Click Enhancement**: Provides an optimized, production-ready version of the user's prompt with an immediate "Apply Improved Prompt" button.
+- **One-Click Enhancement**: Provides an optimized, production-ready version of the user's prompt with an immediate "Apply to Editor" button.
 
-### 🌐 Tool Calling & Web Search Integration
-- **Function Calling Architecture**: Transparently implements Groq tool calling schemas (`web_search` and custom tools).
-- **Interactive Tool Calls Viewer**: Shows arguments passed to tools and synthesizes cited responses with domain badges.
+### 🌐 Live Web Search & Citations
+- **Dual-Mode Web Search**:
+  - **Native Tool Calling**: Automatically leverages Groq function-calling schemas on models that support tools (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`).
+  - **Direct Search Context Retrieval**: Uses client-side CORS-friendly search (DuckDuckGo & Wikipedia) to augment prompts with real-time sources on non-tool models (e.g. DeepSeek R1) without throwing 400 Bad Request errors.
+- **Verified Source Pills**: Interactive sources card displaying live source titles, URLs, and citations (`[1]`, `[2]`).
 
-### 🎨 Premium Developer Experience
-- **Fluid 3-Panel Layout**: Left collapsible navigation, central workspace with expandable system instructions, and right parameters/analyzer panel.
-- **Syntax Highlighted Code**: Auto-detects programming languages, formatted with one-click copy buttons and line counts.
+### 🎨 Developer Experience & Workspace Architecture
+- **Interactive Model Explorer**: Search, filter by capability (Flagship, Reasoning, Ultra-Fast, Vision, MoE), and inspect hardware parameters with a 1-click model switcher.
+- **Syntax Highlighted Code**: Formats code blocks in real time with line counts, language badges, and one-click copy buttons.
+- **Prompt History & Bookmarks**: Full session history with keyword search, individual item deletion, and "Clear All" with confirmation modal.
+- **Curated Prompt Templates**: Built-in production templates for FastAPI microservices, intent classifiers, security audits, and mathematical logic.
 - **Interactive Canvas Starfield**: Subtle animated cosmic background with particle physics and depth effects.
-- **Local History & Bookmarks**: Save prompts and benchmark runs directly in browser storage with instant recall and export.
 
 ---
 
 ## Project Structure
 
 ```text
-GROQ PLAYGROUND/
+nebula-groq-playground/
 ├── index.html              # Main single-page application entry point
 ├── package.json            # Node project manifest (scripts & dev dependencies)
 ├── vercel.json             # Vercel deployment and security header config
@@ -90,9 +95,6 @@ GROQ PLAYGROUND/
 Run using Python's built-in HTTP server:
 
 ```bash
-# Navigate to the project directory
-cd "GROQ PLAYGROUND"
-
 # Start a local static server on port 3000
 python3 -m http.server 3000
 ```
@@ -105,15 +107,14 @@ http://localhost:3000
 ### Option 2: Using Node.js / NPX
 
 ```bash
-cd "GROQ PLAYGROUND"
-npx serve .
+npx serve . -l 3000
 ```
 
 ### Option 3: Test in Demo Mode (No API Key Required)
 
 1. Launch the application in any browser.
-2. Click **"Try Demo Mode"** on the initial API Key setup modal.
-3. You can explore the **Prompt Analyzer**, browse the **Model Catalog**, test **Prompt Templates**, and view simulated telemetry without entering an API key.
+2. Click **"Explore in Demo Mode"** on the initial API Key setup modal.
+3. You can explore the **Prompt Analyzer**, browse the **Model Explorer**, test **Prompt Templates**, and view simulated telemetry without entering an API key.
 
 ### Getting a Groq API Key
 
@@ -128,14 +129,19 @@ npx serve .
 
 NEBULA is designed for seamless zero-configuration deployment to [Vercel](https://vercel.com).
 
-### Method A: Deploy with Vercel CLI
+### Method A: Deploy via GitHub / Git (Recommended)
+
+1. Push this repository to GitHub or GitLab.
+2. In the Vercel Dashboard, click **New Project** and import the repository.
+3. **Root Directory**: Leave as default root (or set to `GROQ PLAYGROUND`).
+4. **Environment Variables**: None required! The application uses the visitor's own API key via request headers.
+5. Click **Deploy**.
+
+### Method B: Deploy with Vercel CLI
 
 ```bash
-# Install Vercel CLI if you haven't already
+# Install Vercel CLI if needed
 npm install -g vercel
-
-# Navigate to project folder
-cd "GROQ PLAYGROUND"
 
 # Deploy to preview
 vercel
@@ -143,14 +149,6 @@ vercel
 # Deploy to production
 vercel --prod
 ```
-
-### Method B: Deploy via GitHub / Git
-
-1. Push this repository to GitHub or GitLab.
-2. In the Vercel Dashboard, click **New Project** and import the repository.
-3. If this folder is inside a parent repository, set **Root Directory** to `GROQ PLAYGROUND`.
-4. **Environment Variables**: None required! The application uses the visitor's own API key via request headers.
-5. Click **Deploy**.
 
 > [!NOTE]
 > Vercel will automatically serve `index.html` as the frontend entry point and mount `api/groq.js` as an Edge Runtime serverless function at `/api/groq` for optional proxy routing.
@@ -161,15 +159,18 @@ vercel --prod
 
 NEBULA includes preconfigured metadata and context windows for all major Groq production models, and automatically synchronizes with the live Groq API:
 
-| Model Name | Model ID | Context | Max Output | Speed (LPU) | Primary Use Case |
+| Model Name | Model ID | Context | Max Output | Speed (LPU) | Primary Capability |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Llama 3.3 70B Versatile** | `llama-3.3-70b-versatile` | 128,000 | 32,768 | ~280 T/s | Flagship reasoning, coding, long context |
+| **Llama 3.3 70B Versatile** | `llama-3.3-70b-versatile` | 128,000 | 32,768 | ~280 T/s | Flagship reasoning, coding, tool calling |
 | **Llama 3.1 8B Instant** | `llama-3.1-8b-instant` | 128,000 | 8,192 | ~840 T/s | Ultra-fast low latency, micro-tasks |
 | **DeepSeek R1 Distill 70B** | `deepseek-r1-distill-llama-70b` | 128,000 | 8,192 | ~260 T/s | Chain-of-thought math, code deduction |
 | **DeepSeek R1 Distill 32B** | `deepseek-r1-distill-qwen-32b` | 128,000 | 8,192 | ~390 T/s | Fast scientific deduction, code logic |
+| **Qwen QwQ 32B Preview** | `qwen-qwq-32b` | 128,000 | 8,192 | ~380 T/s | Step-by-step reasoning & verification |
+| **Llama 3.1 70B Versatile** | `llama-3.1-70b-versatile` | 128,000 | 8,192 | ~280 T/s | Versatile general intelligence |
+| **Llama 3.2 11B Vision** | `llama-3.2-11b-vision-preview` | 128,000 | 8,192 | ~420 T/s | Multimodal visual reasoning |
+| **Llama 3.2 90B Vision** | `llama-3.2-90b-vision-preview` | 128,000 | 8,192 | ~180 T/s | Flagship multimodal visual reasoning |
 | **Mixtral 8x7B MoE** | `mixtral-8x7b-32768` | 32,768 | 32,768 | ~450 T/s | High-efficiency multilingual tasks |
 | **Gemma 2 9B Instruct** | `gemma2-9b-it` | 8,192 | 8,192 | ~520 T/s | Concise instruction following, safety |
-| **Llama 3.2 11B Vision** | `llama-3.2-11b-vision-preview` | 128,000 | 8,192 | ~420 T/s | Multimodal visual reasoning |
 
 ---
 
@@ -183,11 +184,12 @@ User Prompt ──► Regex Lexical Tokenizer
                     ├──► Pattern Detection (Exemplar Pairs: "Input: ... Output: ...")
                     │         ├── 0 Exemplars ──► Zero-Shot (Confidence 92%)
                     │         ├── 1 Exemplar   ──► One-Shot  (Confidence 95%)
-                    │         └── ≥2 Exemplars ──► Few-Shot  (Confidence 98%)
+                    │         ├── ≥2 Exemplars ──► Few-Shot  (Confidence 98%)
+                    │         └── Loose Mentions ──► Uncertain (Confidence 65%)
                     │
                     ├──► Quality Heuristics (Clarity, Specificity, Context, Constraints)
                     │
-                    └──► Rule-Based Optimizer ──► "Apply Improved Prompt"
+                    └──► Rule-Based Optimizer ──► "Apply to Editor"
 ```
 
 ---
@@ -201,7 +203,18 @@ User Prompt ──► Regex Lexical Tokenizer
 
 ---
 
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+| :--- | :--- |
+| `⌘ / Ctrl + Enter` | Run prompt |
+| `Escape` | Abort generation / Close modal |
+| `⌘ / Ctrl + K` | Clear response viewer |
+| `⌘ / Ctrl + L` | Clear prompt editor |
+| `?` | Open keyboard shortcuts modal |
+
+---
+
 ## License
 
 MIT License. Designed and built for the AI developer community.
-

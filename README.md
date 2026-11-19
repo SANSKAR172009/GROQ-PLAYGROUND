@@ -1,110 +1,220 @@
-# minigit
+# NEBULA — Groq Intelligence Playground
 
-**A small Git, rebuilt from scratch in Python so you can see how it works.**
+<p align="center">
+  <img src="src/assets/logo.svg" alt="NEBULA Logo" width="80" height="80" />
+</p>
 
-You use Git every day. minigit rebuilds it in plain Python with no dependencies: the object store, SHA-1 content addressing, trees, commits, branches and the staging area.
+<p align="center">
+  <strong>Production-Grade, Ultra-Low Latency AI Developer Workspace for Groq LPUs</strong>
+</p>
 
-It isn't a toy format. minigit writes **real Git objects**, so real Git can read a minigit repository:
+<p align="center">
+  <a href="#key-features">Key Features</a> •
+  <a href="#quickstart">Quickstart</a> •
+  <a href="#project-structure">Project Structure</a> •
+  <a href="#prompt-analyzer">Prompt Analyzer</a> •
+  <a href="#model-catalog">Supported Models</a> •
+  <a href="#vercel-deployment">Deploy to Vercel</a> •
+  <a href="#security--privacy">Security</a>
+</p>
 
-```console
-$ minigit init
-$ echo "hello" > hello.txt
-$ minigit add hello.txt
-$ minigit commit -m "First commit"
-[main (root-commit) 3f6a1c2] First commit     # your SHA will differ: it includes the time
+---
 
-$ GIT_DIR=.minigit git log --oneline      # real git, reading minigit's data
-3f6a1c2 First commit
+## Overview
+
+**NEBULA** is a high-performance, developer-first AI playground crafted specifically for Groq's Language Processing Units (LPUs). Designed with a modern, futuristic dark glassmorphism interface, NEBULA delivers real-time inference monitoring, DeepSeek R1 reasoning transparency, prompt engineering telemetry, and function calling exploration—all running on a **Bring Your Own Key (BYOK)** architecture with zero backend key storage or vendor lock-in.
+
+---
+
+## Key Features
+
+### ⚡ Ultra-Low Latency Inference
+- **Streaming Response Engine**: Leverages native `ReadableStream` and Server-Sent Events (SSE) with `TextDecoder` for instantaneous token streaming.
+- **Official Groq LPU Telemetry**: Sends `stream_options: { include_usage: true }` to capture exact token usage metadata, generation speed (up to 840+ tokens/sec), queue time, and latency directly from Groq LPUs.
+- **Inference Speed Benchmarks**: Live telemetry displays tokens per second, request latency, and input/output token breakdowns.
+
+### 🧠 DeepSeek R1 Chain-of-Thought Reasoning
+- **Live `<think>` Tag Parser**: Transparently intercepts and separates chain-of-thought internal reasoning from final answer markdown during streaming.
+- **Collapsible Reasoning Drawer**: Interactive, pulsing thought monitor with token counters and live elapsed reasoning timers.
+- **Reasoning Effort Presets**: Configurable reasoning depth (Low, Medium, High) for models that support reasoning effort.
+- **Model Compatibility Guardrails**: Explicitly disables reasoning controls for unsupported models with a 1-click option to switch to DeepSeek R1 70B.
+
+### 🔍 Built-In AI Prompt Analyzer & Structural Classifier
+- **Client-Side Structural Classifier**: Evaluates input prompts 100% locally in the browser with zero external network requests:
+  - **Zero-Shot**: Pure instructions or queries without demonstration pairs.
+  - **One-Shot**: Contains exactly one concrete input/output exemplar pair.
+  - **Few-Shot**: Contains $\ge 2$ structured exemplar pairs with format pattern verification.
+  - **Uncertain / Ambiguous**: Identifies loose conversational references (e.g. "for example") lacking structured exemplar syntax.
+- **Prompt Quality Audit**: Rates Clarity, Specificity, Context, and Constraints (0–100 score).
+- **One-Click Enhancement**: Provides an optimized, production-ready version of the user's prompt with an immediate "Apply to Editor" button.
+
+### 🌐 Live Web Search & Citations
+- **Dual-Mode Web Search**:
+  - **Native Tool Calling**: Automatically leverages Groq function-calling schemas on models that support tools (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`).
+  - **Direct Search Context Retrieval**: Uses client-side CORS-friendly search (DuckDuckGo & Wikipedia) to augment prompts with real-time sources on non-tool models (e.g. DeepSeek R1) without throwing 400 Bad Request errors.
+- **Verified Source Pills**: Interactive sources card displaying live source titles, URLs, and citations (`[1]`, `[2]`).
+
+### 🎨 Developer Experience & Workspace Architecture
+- **Interactive Model Explorer**: Search, filter by capability (Flagship, Reasoning, Ultra-Fast, Vision, MoE), and inspect hardware parameters with a 1-click model switcher.
+- **Syntax Highlighted Code**: Formats code blocks in real time with line counts, language badges, and one-click copy buttons.
+- **Prompt History & Bookmarks**: Full session history with keyword search, individual item deletion, and "Clear All" with confirmation modal.
+- **Curated Prompt Templates**: Built-in production templates for FastAPI microservices, intent classifiers, security audits, and mathematical logic.
+- **Interactive Canvas Starfield**: Subtle animated cosmic background with particle physics and depth effects.
+
+---
+
+## Project Structure
+
+```text
+nebula-groq-playground/
+├── index.html              # Main single-page application entry point
+├── package.json            # Node project manifest (scripts & dev dependencies)
+├── vercel.json             # Vercel deployment and security header config
+├── .gitignore              # Standard git exclusion rules
+├── .env.example            # Environment variables specification (BYOK documentation)
+├── README.md               # Complete documentation and setup guide
+├── api/
+│   └── groq.js             # Optional Vercel Edge Serverless Function proxy
+└── src/
+    ├── assets/
+    │   └── logo.svg        # Scalable vector brand asset (Orbital LPU Diamond)
+    ├── scripts/
+    │   ├── api.js          # Groq API client, catalog, SSE parser, and tools
+    │   ├── analyzer.js     # Structural prompt classifier & heuristic auditor
+    │   └── app.js          # UI controller, state management, and canvas FX
+    └── styles/
+        └── style.css       # Complete dark glassmorphism design system
 ```
 
-minigit is a [Hello FOSS 2026](https://www.wncc-iitb.org/) project. Each Git command is a small, self-contained Python file, so it's easy to make your first open-source contribution here, and you learn how Git works while doing it.
+---
 
-## Quick start
+## Quickstart
 
-You need **Python 3.10 or newer**. Git is optional; it's only used to check compatibility.
+### Option 1: Instant Local HTTP Server (Zero Dependencies)
+
+Run using Python's built-in HTTP server:
 
 ```bash
-git clone https://github.com/<your-username>/minigit.git
-cd minigit
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
-pytest                             # everything should pass
+# Start a local static server on port 3000
+python3 -m http.server 3000
 ```
 
-Now try it in a scratch folder **outside** the minigit source code:
+Open your browser to:
+```text
+http://localhost:3000
+```
+
+### Option 2: Using Node.js / NPX
 
 ```bash
-mkdir ~/playground && cd ~/playground
-minigit init
-echo "hello" > hello.txt
-minigit add hello.txt
-minigit commit -m "First commit"
-minigit cat-file -p HEAD           # look inside the commit you just made
+npx serve . -l 3000
 ```
 
-> **Tip:** If the `minigit` command isn't found, use `python -m minigit` instead.
+### Option 3: Test in Demo Mode (No API Key Required)
 
-## What works
+1. Launch the application in any browser.
+2. Click **"Explore in Demo Mode"** on the initial API Key setup modal.
+3. You can explore the **Prompt Analyzer**, browse the **Model Explorer**, test **Prompt Templates**, and view simulated telemetry without entering an API key.
 
-| Command | Status | |
-|---|---|---|
-| `init [-b <branch>] [-q] [directory]` | ✅ Done | Create a repository; choose the initial branch or run quietly |
-| `hash-object [-w]` | ✅ Done | Hash a file, optionally store it |
-| `cat-file -t/-s/-p` | ✅ Done | Look inside any object |
-| `add <paths>` | ✅ Done | Stage files and directories |
-| `commit -m` | ✅ Done | Record a snapshot |
-| `ls-files [-s]` | ✅ Done | Show staged files |
-| `tag [-d]` | ✅ Done | Create, list or delete tags |
-| `grep [-i -n -c -l -w] <pattern> [<revision>]` | ✅ Done | Search the contents of tracked files |
-| `write-tree` | ✅ Done | Write the staged snapshot as trees and print the root SHA |
-| `commit-tree <tree> [-p <parent>]... -m <message>` | ✅ Done | Create a commit object without moving a branch |
-| `count-objects [-v]` | ✅ Done | Count unpacked objects and report disk consumption |
-| `archive [--format zip\|tar\|tar.gz] [--prefix <dir/>] -o <file> <revision>` | ✅ Done | Write the files of a commit into a `.zip`, `.tar` or `.tar.gz` without touching the working tree |
-| `log`, `status`, `branch`, `checkout`, `diff`, `rm`, `reset`, `merge`, … | 🚧 [Open issues](../../issues) | **This is where you come in** |
+### Getting a Groq API Key
 
-## How Git works, in about a minute
+1. Go to [Groq Console](https://console.groq.com/keys).
+2. Sign in or create a free account.
+3. Click **Create API Key**, give it a name, and copy the key (starts with `gsk_`).
+4. Paste it into NEBULA's connection modal.
 
-Git is a **key-value store**. The key is the SHA-1 hash of the value, and there are only three kinds of value you need to know:
+---
+
+## Vercel Deployment
+
+NEBULA is designed for seamless zero-configuration deployment to [Vercel](https://vercel.com).
+
+### Method A: Deploy via GitHub / Git (Recommended)
+
+1. Push this repository to GitHub or GitLab.
+2. In the Vercel Dashboard, click **New Project** and import the repository.
+3. **Root Directory**: Leave as default root (or set to `GROQ PLAYGROUND`).
+4. **Environment Variables**: None required! The application uses the visitor's own API key via request headers.
+5. Click **Deploy**.
+
+### Method B: Deploy with Vercel CLI
+
+```bash
+# Install Vercel CLI if needed
+npm install -g vercel
+
+# Deploy to preview
+vercel
+
+# Deploy to production
+vercel --prod
+```
+
+> [!NOTE]
+> Vercel will automatically serve `index.html` as the frontend entry point and mount `api/groq.js` as an Edge Runtime serverless function at `/api/groq` for optional proxy routing.
+
+---
+
+## Supported Models Catalog
+
+NEBULA includes preconfigured metadata and context windows for all major Groq production models, and automatically synchronizes with the live Groq API:
+
+| Model Name | Model ID | Context | Max Output | Speed (LPU) | Primary Capability |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Llama 3.3 70B Versatile** | `llama-3.3-70b-versatile` | 128,000 | 32,768 | ~280 T/s | Flagship reasoning, coding, tool calling |
+| **Llama 3.1 8B Instant** | `llama-3.1-8b-instant` | 128,000 | 8,192 | ~840 T/s | Ultra-fast low latency, micro-tasks |
+| **DeepSeek R1 Distill 70B** | `deepseek-r1-distill-llama-70b` | 128,000 | 8,192 | ~260 T/s | Chain-of-thought math, code deduction |
+| **DeepSeek R1 Distill 32B** | `deepseek-r1-distill-qwen-32b` | 128,000 | 8,192 | ~390 T/s | Fast scientific deduction, code logic |
+| **Qwen QwQ 32B Preview** | `qwen-qwq-32b` | 128,000 | 8,192 | ~380 T/s | Step-by-step reasoning & verification |
+| **Llama 3.1 70B Versatile** | `llama-3.1-70b-versatile` | 128,000 | 8,192 | ~280 T/s | Versatile general intelligence |
+| **Llama 3.2 11B Vision** | `llama-3.2-11b-vision-preview` | 128,000 | 8,192 | ~420 T/s | Multimodal visual reasoning |
+| **Llama 3.2 90B Vision** | `llama-3.2-90b-vision-preview` | 128,000 | 8,192 | ~180 T/s | Flagship multimodal visual reasoning |
+| **Mixtral 8x7B MoE** | `mixtral-8x7b-32768` | 32,768 | 32,768 | ~450 T/s | High-efficiency multilingual tasks |
+| **Gemma 2 9B Instruct** | `gemma2-9b-it` | 8,192 | 8,192 | ~520 T/s | Concise instruction following, safety |
+
+---
+
+## Prompt Analyzer & Structural Classifier
+
+The built-in prompt analyzer (`src/scripts/analyzer.js`) runs entirely in the user's browser without sending user input to any remote server:
 
 ```
-commit fb23685 ──► tree afbdd27 ──┬─► blob ce01362  "hello\n"         (hello.txt)
-  author Ada                      └─► tree 5f6ed9b ──► blob b917a72    (src/app.py)
-  parent (none)
-  "First commit"
+User Prompt ──► Regex Lexical Tokenizer
+                    │
+                    ├──► Pattern Detection (Exemplar Pairs: "Input: ... Output: ...")
+                    │         ├── 0 Exemplars ──► Zero-Shot (Confidence 92%)
+                    │         ├── 1 Exemplar   ──► One-Shot  (Confidence 95%)
+                    │         ├── ≥2 Exemplars ──► Few-Shot  (Confidence 98%)
+                    │         └── Loose Mentions ──► Uncertain (Confidence 65%)
+                    │
+                    ├──► Quality Heuristics (Clarity, Specificity, Context, Constraints)
+                    │
+                    └──► Rule-Based Optimizer ──► "Apply to Editor"
 ```
 
-- A **blob** is the contents of one file.
-- A **tree** is one directory, mapping names to blobs and other trees.
-- A **commit** is a snapshot: one root tree, plus parent commit(s), author and message.
-- A **branch** is a file containing a commit SHA. `HEAD` says which branch you're on.
+---
 
-That's all of it. Every command in Git (and minigit) reads or moves these pieces around. Try the [hands-on internals walkthrough](docs/internals-walkthrough.md) to see them appear on disk, or read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a tour of the code.
+## Security & Privacy Guarantee
 
-## Contributing
+- **BYOK (Bring Your Own Key)**: Visitors use their own Groq API keys. No shared or developer API keys are ever stored on any server.
+- **Ephemeral Storage**: Keys are stored in `sessionStorage` or runtime memory by default. Local persistence (`localStorage`) is only enabled if the visitor explicitly checks *"Remember key on this device"*.
+- **No Third-Party Telemetry**: Prompts, responses, and keys are never collected, logged, or sent to any server other than the official Groq API endpoint (`https://api.groq.com/openai/v1`).
+- **Direct CORS or Edge Proxy**: The application defaults to direct browser-to-Groq requests. If CORS or corporate firewalls restrict outbound calls, the included minimal edge proxy (`api/groq.js`) securely forwards the key header without logging.
 
-We'd love your help, especially if this is your first open-source contribution.
+---
 
-1. Read **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup, the workflow and PR rules.
-2. Work through **[docs/adding-a-command.md](docs/adding-a-command.md)**, a 15-minute tutorial.
-3. Pick an issue labelled [`good first issue`](../../issues?q=is%3Aopen+label%3A%22good+first+issue%22) and comment to claim it.
+## Keyboard Shortcuts
 
-## Project layout
+| Shortcut | Action |
+| :--- | :--- |
+| `⌘ / Ctrl + Enter` | Run prompt |
+| `Escape` | Abort generation / Close modal |
+| `⌘ / Ctrl + K` | Clear response viewer |
+| `⌘ / Ctrl + L` | Clear prompt editor |
+| `?` | Open keyboard shortcuts modal |
 
-```
-src/minigit/
-    cli.py          argument parsing; finds commands automatically
-    commands/       one file per command  ← most contributions go here
-    objects.py      blobs, trees, commits: reading, writing, hashing
-    index.py        the staging area
-    refs.py         branches, tags, HEAD, and resolving names to SHAs
-    worktree.py     listing the files in the working tree
-    repo.py         finding / creating the .minigit directory
-    identity.py     who is committing, and when
-tests/              pytest tests, one file per module / command
-docs/               architecture guide and tutorials
-```
+---
 
 ## License
 
-[MIT](LICENSE)
+MIT License. Designed and built for the AI developer community.
